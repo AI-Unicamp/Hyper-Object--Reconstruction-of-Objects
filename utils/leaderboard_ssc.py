@@ -7,6 +7,7 @@ import numpy as np
 # TODO: allow all metrics to use GPU (implement them with torch)
 from utils.metrics import sid as sid_metric, ergas as ergas_metric
 from utils.visualizations import render_srgb_preview  # returns sRGB float [0,1]
+from utils.render_srgb import hsi2rgb
 
 from torchmetrics.functional.image import spectral_angle_mapper as sam_metric
 from torchmetrics.functional.image import peak_signal_noise_ratio as psnr_metric
@@ -65,12 +66,18 @@ def evaluate_pair_ssc(
     S_spec   = (S_SAM * S_SID * S_ERGAS) ** (1/3)
 
     # --- spatial/color via sRGB render (D65) ---
-    gt_rgb = render_srgb_preview(gt_cube, wl_nm, clip=True, title=None)
-    pr_rgb = render_srgb_preview(pr_cube, wl_nm, clip=True, title=None)
+    # gt_rgb = render_srgb_preview(gt_cube, wl_nm, clip=True, title=None)
+    # pr_rgb = render_srgb_preview(pr_cube, wl_nm, clip=True, title=None)
 
-    dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    gt_rgb_t = torch.from_numpy(gt_rgb).to(dev).permute(2, 0, 1).unsqueeze(0)
-    pr_rgb_t = torch.from_numpy(pr_rgb).to(dev).permute(2, 0, 1).unsqueeze(0)
+    # dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # gt_rgb_t = torch.from_numpy(gt_rgb).to(dev).permute(2, 0, 1).unsqueeze(0)
+    # pr_rgb_t = torch.from_numpy(pr_rgb).to(dev).permute(2, 0, 1).unsqueeze(0)
+
+    gt_rgb_t = hsi2rgb(gt_cube)
+    pr_rgb_t = hsi2rgb(pr_cube)
+    
+    gt_rgb = gt_rgb_t.cpu().numpy()
+    pr_rgb = pr_rgb_t.cpu().numpy()
 
     with torch.no_grad():
         psnr_val = psnr_metric(pr_rgb_t, gt_rgb_t, data_range=1.0).item()

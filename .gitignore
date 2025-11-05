@@ -1,5 +1,6 @@
 data/*
 !data/.gitkeep
+!data/render_srgb
 
 datasets/hyper_object_all.py
 datasets/
