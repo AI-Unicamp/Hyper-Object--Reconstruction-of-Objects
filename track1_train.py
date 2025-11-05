@@ -1,15 +1,12 @@
-#Estava no original e eu coloquei como comentário para lembrar que tinha
 from torch.utils.data import DataLoader
 from baselines.raw2hsi import Raw2HSI
 from trainer.losses import ReconLoss
-from trainer.trainer import Trainer #TrainerCfg  
+from trainer.trainer import Trainer
 
 from datasets.hyper_object import HyperObjectDataset
-#from datasets.pairing import ModalitySpec
-#from datasets.base import JointTransform
-from datasets.transform import random_crop #random_flip
+from datasets.transform import random_crop
 
-from config.track1_cfg import TrainerCfg
+from config.track1_cfg_default import TrainerCfg
 
 import torch 
 
@@ -19,7 +16,7 @@ ds_train = HyperObjectDataset(
     data_root="data/track1",
     track=1,  # 1 for mosaic, 2 for rgb_2
     train=True,
-    transforms=random_crop, #JointTransform(random_flip),
+    transforms=random_crop,
 )
 
 ds_val = HyperObjectDataset(

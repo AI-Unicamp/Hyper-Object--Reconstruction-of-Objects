@@ -16,11 +16,13 @@ from torch.utils.data import DataLoader
 # - render: function to convert HSI cube -> sRGB under D65
 from .losses import ReconLoss
 
-from config.track1_cfg import TrainerCfg
+from config.track1_cfg_default import TrainerCfg as TrainerCfg1
+from config.track2_cfg_default import TrainerCfg as TrainerCfg2
 from utils.helpers import _to_hwc
 from utils.metrics import sam, sid, ergas
 from utils.metrics import psnr, ssim
 from utils.visualizations import render_srgb_preview  # returns HxWx3 float [0,1]
+from utils.leaderboard_ssc import evaluate_pair_ssc
 
 class Trainer:
     """
@@ -39,7 +41,8 @@ class Trainer:
         val_loader: DataLoader,
         loss_fn: Optional[torch.nn.Module] = None,
         device: Optional[torch.device] = torch.device("cuda" if torch.cuda.is_available() else "cpu"),
-        cfg: TrainerCfg = TrainerCfg(),
+        # TODO: make trainer configs less messy. separate trainer configs from model configs
+        cfg: TrainerCfg1 | TrainerCfg2 = TrainerCfg1(),
     ):
         self.cfg = cfg
         self.train_loader = train_loader
@@ -72,8 +75,10 @@ class Trainer:
                 w = csv.writer(f)
                 header = [
                     "epoch", "lr", "train_loss", "val_loss",
-                    "SAM_deg", "SID", "ERGAS",
-                    "PSNR_dB", "SSIM", 
+                    "SAM_deg", "SID", "ERGAS", # spectral metrics
+                    "PSNR_dB", "SSIM",         # spatial metrics
+                    "E00",                     # color metric
+                    "SSC"                      # final score
                 ]
                 w.writerow(header)
 
@@ -95,12 +100,15 @@ class Trainer:
         self.model.train()
         running = 0.0
         n_samples = 0
-        t0 = time.time()
+        total_samples = len(self.train_loader.dataset)
 
+        total_grad_time = 0.0
+        total_time_start = time.time()
         for batch in self.train_loader:
             input_img  :   torch.Tensor = batch["input"].to(self.device, non_blocking=True)     # (N,c(1 or 3),H,W)
             output_cube:   torch.Tensor = batch["output"].to(self.device, non_blocking=True)    # (N,C,H,W)
 
+            grad_time_start = time.time()
             self.optimizer.zero_grad(set_to_none=True)
             if self.scaler is None:
                 pred, loss = self._forward_loss(input_img, output_cube)
@@ -112,15 +120,25 @@ class Trainer:
                 self.scaler.scale(loss).backward()
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
+            grad_time = time.time() - grad_time_start
+            total_grad_time += grad_time
 
             running += float(loss.item()) * input_img.size(0)
             n_samples += input_img.size(0)
+            if n_samples > 0:
+                print(f"[{epoch:03d}] (training...) running avg loss: {(running / n_samples):7.6f}   [ {n_samples:3d} / {total_samples:3d}]", end = '\r')
 
         if self.scheduler is not None:
             self.scheduler.step()
 
         avg = running / max(n_samples, 1)
-        dt = time.time() - t0
+
+        total_time = time.time() - total_time_start
+        print(f"\n[{epoch:03d}] training finished.",
+              f"Total time: {total_time:.3f}s",
+              f"/ Train time: {total_grad_time:.3f}s",
+              f"/ I/O time: {(total_time-total_grad_time):.3f}s")
+
         return avg
 
     @torch.no_grad()
@@ -132,44 +150,59 @@ class Trainer:
 
         loss_sum = 0.0
         n_samples = 0
+        total_samples = len(self.val_loader.dataset)
 
         sam_list: List[float] = []
         sid_list: List[float] = []
         erg_list: List[float] = []
         psnr_list: List[float] = []
         ssim_list: List[float] = []
+        de00_list: List[float] = []
+        ssc_list: List[float] = []
 
+        total_val_time = 0.0
+        total_time_start = time.time()
 
         for batch in self.val_loader:
             input_img  :   torch.Tensor = batch["input"].to(self.device, non_blocking=True)
             output_cube:   torch.Tensor = batch["output"].to(self.device, non_blocking=True)
 
             # forward (no grad)
-            pred_cube = self.model(input_img).clamp(0, 1)
-            loss = self.loss_fn(pred_cube, output_cube)
+            val_time_start = time.time()
+            with torch.no_grad():
+                pred_cube = self.model(input_img).clamp(0, 1)
+                loss = self.loss_fn(pred_cube, output_cube)
 
             loss_sum += float(loss.item()) * input_img.size(0)
             n_samples += input_img.size(0)
 
+            if n_samples > 0:
+                print(f"[{epoch:03d}] (validating...) running avg loss: {(loss_sum / n_samples):7.6f}   [ {n_samples:3d} / {total_samples:3d}]", end = '\r')
+
             # per-sample metrics
             for i in range(pred_cube.size(0)):
                 # --- spectral metrics (means over mask) ---
-                sam_mean = sam(output_cube[i].detach().cpu().numpy(), pred_cube[i].detach().cpu().numpy(), reduction="mean", mask=mask)      # deg (↓)
-                sid_mean = sid(output_cube[i].detach().cpu().numpy(), pred_cube[i].detach().cpu().numpy(), reduction="mean", mask=mask)      # (↓)
-                erg_val  = ergas(output_cube[i].detach().cpu().numpy(), pred_cube[i].detach().cpu().numpy(), scale=1.0)                      # (↓)
 
-                psnr_val = psnr(output_cube[i].detach().cpu().numpy(), pred_cube[i].detach().cpu().numpy(), data_range=1.0, mask=mask)
-                ssim_val = ssim(output_cube[i].detach().cpu().numpy(), pred_cube[i].detach().cpu().numpy(), data_range=1.0, mask=mask)
-
-                dE_mean  = _deltaE00_mean(output_cube[i].detach().cpu().numpy(), pred_cube[i].detach().cpu().numpy())
-
+                # FIXME: slow as molasses. the metrics are all CPU-bound instead of
+                # taking advantage of the GPU, for some reason.
+                scores = evaluate_pair_ssc(output_cube[i].detach(), pred_cube[i].detach(), wl_nm=self.cfg.wl_61)
 
                 sam_list.append(scores["SAM_deg"])
                 sid_list.append(scores["SID"])
                 erg_list.append(scores["ERGAS"])
                 psnr_list.append(scores["PSNR_dB"])
                 ssim_list.append(scores["SSIM"])
+                de00_list.append(scores["DeltaE00"])
+                ssc_list.append(scores["SSC"])
 
+            val_time = time.time() - val_time_start
+            total_val_time += val_time
+
+        total_time = time.time() - total_time_start
+        print(f"\n[{epoch:03d}] validation finished.",
+              f"Time: {total_time:.3f}s",
+              f"/ Val time: {total_val_time:.3f}s",
+              f"/ I/O time: {(total_time-total_val_time):.3f}s")
 
         out: Dict[str, float] = {}
         out["val_loss"] = loss_sum / max(n_samples, 1)
@@ -178,6 +211,8 @@ class Trainer:
         out["ERGAS"]    = float(np.mean(erg_list)) if erg_list else float("nan")
         out["PSNR_dB"]  = float(np.mean(psnr_list)) if psnr_list else float("nan")
         out["SSIM"]     = float(np.mean(ssim_list)) if ssim_list else float("nan")
+        out["E00"]     = float(np.mean(de00_list)) if de00_list else float("nan")
+        out["SSC"]     = float(np.mean(ssc_list)) if ssc_list else float("nan")
         return out
 
     def _current_lr(self) -> float:
@@ -196,6 +231,8 @@ class Trainer:
             val_stats.get("ERGAS", float("nan")),
             val_stats.get("PSNR_dB", float("nan")),
             val_stats.get("SSIM", float("nan")),
+            val_stats.get("E00", float("nan")),
+            val_stats.get("SSC", float("nan"))
         ]
         with open(self.log_csv, "a", newline="") as f:
             csv.writer(f).writerow(row)
@@ -213,7 +250,10 @@ class Trainer:
             f"SID: {val_stats.get('SID', float('nan')):7.4f}",
             f"ERGAS: {val_stats.get('ERGAS', float('nan')):6.3f}",
             f"PSNR(dB): {val_stats.get('PSNR_dB', float('nan')):6.2f}",
-            f"SSIM: {val_stats.get('SSIM', float('nan')):5.3f} | ",
+            f"SSIM: {val_stats.get('SSIM', float('nan')):5.3f}",
+
+            # --- Final Score ---
+            f"\n[{epoch:03d}] SSC: {val_stats.get('SSC', float('nan')):5.5f}",
         ]
         print("  ".join(parts))
 
