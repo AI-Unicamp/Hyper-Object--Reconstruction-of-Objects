@@ -1,23 +1,25 @@
+#Estava no original e eu coloquei como comentário para lembrar que tinha
 from torch.utils.data import DataLoader
 from baselines.raw2hsi import Raw2HSI
 from trainer.losses import ReconLoss
-from trainer.trainer import Trainer, TrainerCfg
+from trainer.trainer import Trainer, #TrainerCfg  
 
 from datasets.hyper_object import HyperObjectDataset
-from datasets.pairing import ModalitySpec
-from datasets.base import JointTransform
-from datasets.transform import random_flip
+#from datasets.pairing import ModalitySpec
+#from datasets.base import JointTransform
+from datasets.transform import random_crop #random_flip
 
 from config.track1_cfg import TrainerCfg
 
 import torch 
 
+# TODO: add command-line arguments
 
 ds_train = HyperObjectDataset(
     data_root="data/track1",
     track=1,  # 1 for mosaic, 2 for rgb_2
     train=True,
-    transforms=JointTransform(random_flip),
+    transforms=random_crop, #JointTransform(random_flip),
 )
 
 ds_val = HyperObjectDataset(
