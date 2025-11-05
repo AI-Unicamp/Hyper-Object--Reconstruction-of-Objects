@@ -1,4 +1,12 @@
 data/*
 !data/.gitkeep
 
+datasets/hyper_object_all.py
+draft.ipynb
+
 runs/*
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[codz]
+*$py.class
