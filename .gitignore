@@ -6,6 +6,9 @@ draft.ipynb
 
 runs/*
 
+# virtual environments
+venvs/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

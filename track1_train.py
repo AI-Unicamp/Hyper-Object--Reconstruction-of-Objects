@@ -2,7 +2,7 @@
 from torch.utils.data import DataLoader
 from baselines.raw2hsi import Raw2HSI
 from trainer.losses import ReconLoss
-from trainer.trainer import Trainer, #TrainerCfg  
+from trainer.trainer import Trainer #TrainerCfg  
 
 from datasets.hyper_object import HyperObjectDataset
 #from datasets.pairing import ModalitySpec
