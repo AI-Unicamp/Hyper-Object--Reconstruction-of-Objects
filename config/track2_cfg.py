@@ -7,6 +7,6 @@ crop_size = 128 #320
 bands = np.arange(400, 1000, 10)
 
 # training parameters
-batch_size = 2
-epochs = 14
+batch_size = 1 # valor original: 2
+epochs = 1  # valor original: 14
 init_lr = 4e-4

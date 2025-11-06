@@ -19,7 +19,7 @@ from torchvision import transforms
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(device)
 
-# python track2_train.py --data_dir /mnt/data/2026-Hyper-Object-Data --model_name MST_Plus_Plus_Up
+# python track2_train.py --data_dir datasets/2026-Hyper-Object-Data --model_name MST_Plus_Plus_Up
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--data_dir', type = str, default = 'E:/hyper-skin-data/Hyper-Skin(MSI, NIR)', required=True, help = 'data directory')
