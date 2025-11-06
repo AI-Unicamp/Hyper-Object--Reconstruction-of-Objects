@@ -4,14 +4,12 @@ from typing import Dict, Optional, Tuple
 import torch
 import numpy as np
 
-# TODO: allow all metrics to use GPU (implement them with torch)
-from utils.metrics import sid as sid_metric, ergas as ergas_metric
-from utils.visualizations import render_srgb_preview  # returns sRGB float [0,1]
 from utils.render_srgb import hsi2rgb
 
 from torchmetrics.functional.image import spectral_angle_mapper as sam_metric
 from torchmetrics.functional.image import peak_signal_noise_ratio as psnr_metric
 from torchmetrics.functional.image import structural_similarity_index_measure as ssim_metric
+from torchmetrics.functional.image import error_relative_global_dimensionless_synthesis as ergas_metric
 
 # --- scaling helpers (all return [0,1]) ---
 # def _exp_score(x_mean: float, tau: float) -> float:
@@ -30,6 +28,17 @@ def _deltaE00_mean(rgb1: np.ndarray, rgb2: np.ndarray) -> float:
     Lab1 = colour.XYZ_to_Lab(XYZ1);  Lab2 = colour.XYZ_to_Lab(XYZ2)
     dE = colour.difference.delta_E(Lab1.reshape(-1,3), Lab2.reshape(-1,3), method="CIE 2000")
     return float(np.mean(dE))
+
+def sid_metric(pred: torch.Tensor, gt: torch.Tensor, eps = 1e-12):
+    # normalize like probability distribution
+    norm_gt = gt / (gt.sum(dim=0, keepdim=True) + eps)    
+    norm_pred = pred / (pred.sum(dim=0, keepdim=True) + eps)    
+
+    # kullback-leibler divergences
+    D_pq = torch.sum(norm_gt * torch.log((norm_gt + eps)/(norm_pred + eps)), dim=0)
+    D_qp = torch.sum(norm_pred * torch.log((norm_pred + eps)/(norm_gt + eps)), dim=0)
+
+    return torch.mean(D_pq + D_qp)
 
 # TODO (IMPORTANT): implement masking for all metrics
 def evaluate_pair_ssc(
@@ -50,38 +59,29 @@ def evaluate_pair_ssc(
     """
     Returns all subscores in [0,1] and the final SSC in [0,1].
     """
-    gt_cube_np = gt_cube.detach().cpu().numpy()
-    pr_cube_np = pr_cube.detach().cpu().numpy()
+    # gt_cube_np = gt_cube.detach().cpu().numpy()
+    # pr_cube_np = pr_cube.detach().cpu().numpy()
 
     # --- spectral metrics (means over mask) ---
     with torch.no_grad():
-        sam_mean = sam_metric(pr_cube.unsqueeze(0), gt_cube.unsqueeze(0)).detach().cpu().numpy()
-        sam_mean = float(np.degrees(np.clip(sam_mean, -1.0, 1.0)))             # deg (↓)
-    sid_mean = sid_metric(gt_cube_np, pr_cube_np, reduction="mean", mask=mask) # (↓)
-    erg_val  = ergas_metric(gt_cube_np, pr_cube_np, scale=1.0)                 # (↓)
+        sam_mean = sam_metric(pr_cube.unsqueeze(0), gt_cube.unsqueeze(0)).clamp(-1.0, 1.0).rad2deg().item()
+        sid_mean = sid_metric(pr_cube, gt_cube).item()
+        erg_val  = ergas_metric(pr_cube.unsqueeze(0), gt_cube.unsqueeze(0), ratio=1.0).item()
 
     S_SAM    = _exp_score(sam_mean, taus["sam"])
     S_SID    = _exp_score(sid_mean, taus["sid"])
     S_ERGAS  = _exp_score(erg_val,  taus["ergas"])
     S_spec   = (S_SAM * S_SID * S_ERGAS) ** (1/3)
 
-    # --- spatial/color via sRGB render (D65) ---
-    # gt_rgb = render_srgb_preview(gt_cube, wl_nm, clip=True, title=None)
-    # pr_rgb = render_srgb_preview(pr_cube, wl_nm, clip=True, title=None)
-
-    # dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # gt_rgb_t = torch.from_numpy(gt_rgb).to(dev).permute(2, 0, 1).unsqueeze(0)
-    # pr_rgb_t = torch.from_numpy(pr_rgb).to(dev).permute(2, 0, 1).unsqueeze(0)
-
     gt_rgb_t = hsi2rgb(gt_cube)
     pr_rgb_t = hsi2rgb(pr_cube)
     
-    gt_rgb = gt_rgb_t.cpu().numpy()
-    pr_rgb = pr_rgb_t.cpu().numpy()
+    gt_rgb = gt_rgb_t.permute(1, 2, 0).cpu().numpy()
+    pr_rgb = pr_rgb_t.permute(1, 2, 0).cpu().numpy()
 
     with torch.no_grad():
         psnr_val = psnr_metric(pr_rgb_t, gt_rgb_t, data_range=1.0).item()
-        ssim_val = ssim_metric(pr_rgb_t, gt_rgb_t, data_range=1.0, reduction="elementwise_mean").item()
+        ssim_val = ssim_metric(pr_rgb_t.unsqueeze(0), gt_rgb_t.unsqueeze(0), data_range=1.0, reduction="elementwise_mean").item()
 
     S_PSNR   = _normalize_psnr(psnr_val, *psnr_range)
     S_spat   = 0.5 * (S_PSNR + float(ssim_val))

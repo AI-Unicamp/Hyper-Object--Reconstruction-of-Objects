@@ -196,8 +196,7 @@ class Trainer:
                 for i in range(pred_cube.size(0)):
                     # --- spectral metrics (means over mask) ---
 
-                    # FIXME: slow as molasses. the metrics are all CPU-bound instead of
-                    # taking advantage of the GPU, for some reason.
+                    # FIXME: it's better now but still somewhat slow. are there more improvements to make?
                     scores = evaluate_pair_ssc(output_cube[i].detach(), pred_cube[i].detach(), wl_nm=self.cfg.wl_61)
 
                     for k in metric_keys:
