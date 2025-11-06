@@ -78,7 +78,7 @@ class Trainer:
                     "SAM_deg", "SID", "ERGAS", # spectral metrics
                     "PSNR_dB", "SSIM",         # spatial metrics
                     "E00",                     # color metric
-                    "SSC"                      # final score
+                    "SSC(arith)", "SSC(geom)"  # final score
                 ]
                 w.writerow(header)
 
@@ -142,7 +142,7 @@ class Trainer:
         return avg
 
     @torch.no_grad()
-    def validate(self, epoch: int) -> Dict[str, float]:
+    def validate(self, epoch: int, validate_metrics: bool) -> Dict[str, float]:
         """
         Returns dict with: val_loss, SAM_deg, SID, ERGAS, PSNR_dB, SSIM, (DeltaE00 optional).
         """
@@ -152,13 +152,25 @@ class Trainer:
         n_samples = 0
         total_samples = len(self.val_loader.dataset)
 
-        sam_list: List[float] = []
-        sid_list: List[float] = []
-        erg_list: List[float] = []
-        psnr_list: List[float] = []
-        ssim_list: List[float] = []
-        de00_list: List[float] = []
-        ssc_list: List[float] = []
+        lists_dict: Dict[str, List[float]] = {}
+        metric_keys = [
+                # raw metrics
+                "SAM_deg", "SID", "ERGAS", # spectral
+                "PSNR_dB", "SSIM",         # spatial
+                "DeltaE00",                # color
+
+                # normalized metrics
+                "S_SAM", "S_SID", "S_ERGAS", "S_PSNR", "S_SSIM"
+
+                # grouped scores
+                "S_SPEC", "S_SPAT", "S_COLOR",
+
+                # final scores, using arithmetic and geometric mean
+                "SSC_arith", "SSC_geom"
+        ]
+
+        for k in metric_keys:
+            lists_dict[k] = []
 
         total_val_time = 0.0
         total_time_start = time.time()
@@ -180,20 +192,16 @@ class Trainer:
                 print(f"[{epoch:03d}] (validating...) running avg loss: {(loss_sum / n_samples):7.6f}   [ {n_samples:3d} / {total_samples:3d}]", end = '\r')
 
             # per-sample metrics
-            for i in range(pred_cube.size(0)):
-                # --- spectral metrics (means over mask) ---
+            if validate_metrics:
+                for i in range(pred_cube.size(0)):
+                    # --- spectral metrics (means over mask) ---
 
-                # FIXME: slow as molasses. the metrics are all CPU-bound instead of
-                # taking advantage of the GPU, for some reason.
-                scores = evaluate_pair_ssc(output_cube[i].detach(), pred_cube[i].detach(), wl_nm=self.cfg.wl_61)
+                    # FIXME: slow as molasses. the metrics are all CPU-bound instead of
+                    # taking advantage of the GPU, for some reason.
+                    scores = evaluate_pair_ssc(output_cube[i].detach(), pred_cube[i].detach(), wl_nm=self.cfg.wl_61)
 
-                sam_list.append(scores["SAM_deg"])
-                sid_list.append(scores["SID"])
-                erg_list.append(scores["ERGAS"])
-                psnr_list.append(scores["PSNR_dB"])
-                ssim_list.append(scores["SSIM"])
-                de00_list.append(scores["DeltaE00"])
-                ssc_list.append(scores["SSC"])
+                    for k in metric_keys:
+                        lists_dict[k].append(scores[k])
 
             val_time = time.time() - val_time_start
             total_val_time += val_time
@@ -206,13 +214,8 @@ class Trainer:
 
         out: Dict[str, float] = {}
         out["val_loss"] = loss_sum / max(n_samples, 1)
-        out["SAM_deg"]  = float(np.mean(sam_list)) if sam_list else float("nan")
-        out["SID"]      = float(np.mean(sid_list)) if sid_list else float("nan")
-        out["ERGAS"]    = float(np.mean(erg_list)) if erg_list else float("nan")
-        out["PSNR_dB"]  = float(np.mean(psnr_list)) if psnr_list else float("nan")
-        out["SSIM"]     = float(np.mean(ssim_list)) if ssim_list else float("nan")
-        out["E00"]     = float(np.mean(de00_list)) if de00_list else float("nan")
-        out["SSC"]     = float(np.mean(ssc_list)) if ssc_list else float("nan")
+        for k in metric_keys:
+            out[k] = float(np.mean(lists_dict[k]))
         return out
 
     def _current_lr(self) -> float:
@@ -232,29 +235,51 @@ class Trainer:
             val_stats.get("PSNR_dB", float("nan")),
             val_stats.get("SSIM", float("nan")),
             val_stats.get("E00", float("nan")),
-            val_stats.get("SSC", float("nan"))
+            val_stats.get("SSC_arith", float("nan")),
+            val_stats.get("SSC_geom", float("nan"))
         ]
         with open(self.log_csv, "a", newline="") as f:
             csv.writer(f).writerow(row)
 
-    def _print_epoch(self, epoch: int, train_loss: float, val_stats: Dict[str, float]):
+    def _print_epoch(self, epoch: int, train_loss: float, val_stats: Dict[str, float], report_metrics: bool):
         parts = [
             # --- Epoch and Learning Info ---
-            f"[{epoch:03d}]",
+            f"[{epoch:03d}] epoch finished |",
             f"lr: {self._current_lr():.2e}",
             f"train: {train_loss:7.4f}",
-            f"val: {val_stats.get('val_loss', float('nan')):7.4f} | ",
-
-            # --- Core Reconstruction Metrics ---
-            f"SAM(deg): {val_stats.get('SAM_deg', float('nan')):6.2f}",
-            f"SID: {val_stats.get('SID', float('nan')):7.4f}",
-            f"ERGAS: {val_stats.get('ERGAS', float('nan')):6.3f}",
-            f"PSNR(dB): {val_stats.get('PSNR_dB', float('nan')):6.2f}",
-            f"SSIM: {val_stats.get('SSIM', float('nan')):5.3f}",
-
-            # --- Final Score ---
-            f"\n[{epoch:03d}] SSC: {val_stats.get('SSC', float('nan')):5.5f}",
+            f"val: {val_stats.get('val_loss', float('nan')):7.4f}"
         ]
+
+        if report_metrics:
+            parts += [
+                # --- Core Reconstruction Metrics ---
+                f"\n[{epoch:03d}] RAW METRICS |",
+                f"SAM(deg): {val_stats.get('SAM_deg', float('nan')):6.2f}",
+                f"SID: {val_stats.get('SID', float('nan')):7.4f}",
+                f"ERGAS: {val_stats.get('ERGAS', float('nan')):6.3f}",
+                f"PSNR(dB): {val_stats.get('PSNR_dB', float('nan')):6.2f}",
+                f"SSIM: {val_stats.get('SSIM', float('nan')):5.3f}",
+                f"DE00: {val_stats.get('DeltaE00', float('nan')):5.5f}",
+
+                f"\n[{epoch:03d}] SPECTRAL SCORE |",
+                f"S_SAM: {val_stats.get('S_SAM', float('nan')):5.5f}",
+                f"S_SID: {val_stats.get('S_SID', float('nan')):5.5f}",
+                f"S_ERGAS: {val_stats.get('S_ERGAS', float('nan')):5.5f} |",
+                f"S_SPEC: {val_stats.get('S_SPEC', float('nan')):5.5f}",
+
+                f"\n[{epoch:03d}] SPATIAL SCORE |",
+                f"S_PSNR: {val_stats.get('S_PSNR', float('nan')):5.5f}",
+                f"S_SSIM: {val_stats.get('SSIM', float('nan')):5.5f}",
+                f"S_SPAT: {val_stats.get('S_SPAT', float('nan')):5.5f}",
+
+                f"\n[{epoch:03d}] COLOR SCORE |",
+                f"S_COLOR: {val_stats.get('S_COLOR', float('nan')):5.5f}",
+
+                # --- Final Score ---
+                f"\n[{epoch:03d}] FINAL SCORE |",
+                f"SSC_arith: {val_stats.get('SSC_arith', float('nan')):5.5f}",
+                f"SSC_geom: {val_stats.get('SSC_geom', float('nan')):5.5f}",
+            ]
         print("  ".join(parts))
 
     def _save_checkpoint(self, epoch: int, is_best: bool):
@@ -273,8 +298,11 @@ class Trainer:
         print(f"Start training for {self.cfg.epochs} epochs. Logs → {self.log_csv}")
         for ep in range(1, self.cfg.epochs + 1):
             train_loss = self.train_epoch(ep)
-            val_stats = self.validate(ep)
-            self._print_epoch(ep, train_loss, val_stats)
+
+            validate_metrics: bool = (ep % self.cfg.metrics_report_interval == 0)
+            val_stats = self.validate(ep, validate_metrics=validate_metrics)
+
+            self._print_epoch(ep, train_loss, val_stats, report_metrics=validate_metrics)
             self._log_csv(ep, train_loss, val_stats)
 
             is_best = val_stats["val_loss"] < self.best_val

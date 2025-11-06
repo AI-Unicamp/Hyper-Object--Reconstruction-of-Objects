@@ -14,6 +14,9 @@ class TrainerCfg:
     log_csv_name: str = "train_log.csv"
     wl_61: np.ndarray = field(default_factory=lambda: np.arange(400, 1001, 10))  # 61 bands
 
+    # how many epochs to wait before evaluating all metrics
+    metrics_report_interval: int = 5
+
     # Optimizer & scheduler settings
     lr: float = 2e-4
     weight_decay: float = 1e-4

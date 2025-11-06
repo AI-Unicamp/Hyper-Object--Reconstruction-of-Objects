@@ -91,8 +91,8 @@ def evaluate_pair_ssc(
 
     # --- final SSC (weighted geometric mean) ---
     ws, wp, wc = weights
-    SSC = (S_spec**ws * S_spat**wp * S_color**wc) ** (1.0 / (ws + wp + wc))
-    # SSC = (ws * S_spec + wp * S_spat + wc * S_color) / (ws + wp + wc)
+    SSC_geom = (S_spec**ws * S_spat**wp * S_color**wc) ** (1.0 / (ws + wp + wc))
+    SSC_arith = (ws * S_spec + wp * S_spat + wc * S_color) / (ws + wp + wc)
 
     return dict(
         # raw metrics
@@ -105,7 +105,7 @@ def evaluate_pair_ssc(
         S_SPEC=float(S_spec), S_SPAT=float(S_spat), S_COLOR=float(S_color),
 
         # final
-        SSC=float(SSC),
+        SSC_arith=float(SSC_arith), SSC_geom=float(SSC_geom)
     )
 
 
