@@ -65,8 +65,8 @@ class Trainer:
         # I/O
         self.out_dir = Path(self.cfg.out_dir)
         self.out_dir.mkdir(parents=True, exist_ok=True)
-        self.ckpt_best = self.out_dir / "model_best.pt"
-        self.ckpt_last = self.out_dir / "model_last.pt"
+        self.ckpt_best = self.out_dir / "model_best.tar"
+        self.ckpt_last = self.out_dir / "model_last.tar"
         self.log_csv = self.out_dir / self.cfg.log_csv_name
 
         # CSV header

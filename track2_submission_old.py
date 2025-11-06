@@ -3,15 +3,11 @@ import zipfile
 import numpy as np
 import torch
 from tqdm import tqdm
+from torch.utils.data import Subset
 import pandas as pd
 
 from datasets.hyper_object import HyperObjectDataset
-
-from baselines.mstpp_up import MST_Plus_Plus_LateUpsample
-from config.track2_cfg_default import TrainerCfg
-
-# TODO: create unified submission script
-# TODO: allow models other than baseline
+from baselines import mstpp_up
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(f"Using device: {device}")
@@ -23,11 +19,13 @@ TARGET_IDS = {
     "Category-4_a_0018",
 }
 
-data_dir = 'data/track2'
-model_path = 'runs/track2/mstpp_up_baseline/model_best.tar' # change to model path
-submission_files_dir = 'runs/submission_files'
-submission_zip_path = f'{submission_files_dir}/submission.zip'
+data_dir = '/mnt/data/2026-Hyper-Object-Data'
+model_path = 'runs/track2/saved-models/exp-MST_Plus_Plus_Up-CIE/model.pt'
+submission_files_dir = 'submission_files'
+submission_zip_path = 'submission.zip'
 
+MODEL_NAME = 'MST_Plus_Plus_Up'
+UPSCALE_FACTOR = 2
 BATCH_SIZE = 1
 
 def create_submission():
@@ -38,12 +36,19 @@ def create_submission():
     os.makedirs(submission_files_dir, exist_ok=True)
     print(f"Individual prediction files will be saved in: '{submission_files_dir}'")
 
-    submission_dataset = HyperObjectDataset(
+    full_ds_test = HyperObjectDataset(
         data_root=f'{data_dir}',
         track=2,
         train=False,
-        submission=True,
     )
+
+    if TARGET_IDS is not None:
+        print(f"Filtering dataset to {len(TARGET_IDS)} specific IDs for testing.")
+        desired_indices = [i for i, sample in enumerate(full_ds_test) if sample['id'] in TARGET_IDS]
+        submission_dataset = Subset(full_ds_test, desired_indices)
+    else:
+        print("Processing the full test dataset for final submission.")
+        submission_dataset = full_ds_test
 
     test_loader = torch.utils.data.DataLoader(
         dataset=submission_dataset,
@@ -54,20 +59,15 @@ def create_submission():
     print(f"DataLoader created for {len(submission_dataset)} samples.")
 
     print(f"Loading checkpoint from: {model_path}")
-
-    # make sure settings match training settings! change below if needed
-    cfg = TrainerCfg()
-    model = MST_Plus_Plus_LateUpsample(in_channels=cfg.in_channels,
-                                       out_channels=cfg.out_channels,
-                                       n_feat=cfg.n_feat,
-                                       stage=cfg.stage,
-                                       upscale_factor=cfg.upscale_factor)
-
-    checkpoint = torch.load(model_path, map_location=device, weights_only=True)
-    model.load_state_dict(checkpoint["model"])
+    model = mstpp_up.MST_Plus_Plus_LateUpsample(
+        in_channels=3, out_channels=61, n_feat=61, stage=3, upscale_factor=UPSCALE_FACTOR
+    )
+    checkpoint = torch.load(model_path, map_location=device)
+    model.load_state_dict(checkpoint)
     model.to(device)
     model.eval()
-    model.return_hr = True # do upscaling
+    model.return_hr = True
+    print(f"Model '{MODEL_NAME}' loaded and set to HR evaluation mode.")
 
     print("\nGenerating predictions...")
     for data in tqdm(test_loader, desc="Generating predictions"):
