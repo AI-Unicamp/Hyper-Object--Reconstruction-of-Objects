@@ -160,7 +160,7 @@ class Trainer:
                 "DeltaE00",                # color
 
                 # normalized metrics
-                "S_SAM", "S_SID", "S_ERGAS", "S_PSNR", "S_SSIM"
+                "S_SAM", "S_SID", "S_ERGAS", "S_PSNR", "S_SSIM",
 
                 # grouped scores
                 "S_SPEC", "S_SPAT", "S_COLOR",
@@ -215,7 +215,10 @@ class Trainer:
         out: Dict[str, float] = {}
         out["val_loss"] = loss_sum / max(n_samples, 1)
         for k in metric_keys:
-            out[k] = float(np.mean(lists_dict[k]))
+            if not lists_dict[k]:
+                out[k] = float("nan")
+            else:
+                out[k] = float(np.mean(lists_dict[k]))
         return out
 
     def _current_lr(self) -> float:
@@ -253,30 +256,30 @@ class Trainer:
         if report_metrics:
             parts += [
                 # --- Core Reconstruction Metrics ---
-                f"\n[{epoch:03d}] RAW METRICS |",
+                f"\n[{epoch:03d}] RAW METRICS    |",
                 f"SAM(deg): {val_stats.get('SAM_deg', float('nan')):6.2f}",
                 f"SID: {val_stats.get('SID', float('nan')):7.4f}",
                 f"ERGAS: {val_stats.get('ERGAS', float('nan')):6.3f}",
                 f"PSNR(dB): {val_stats.get('PSNR_dB', float('nan')):6.2f}",
                 f"SSIM: {val_stats.get('SSIM', float('nan')):5.3f}",
-                f"DE00: {val_stats.get('DeltaE00', float('nan')):5.5f}",
+                f"DE00: {val_stats.get('DeltaE00', float('nan')):5.3f}",
 
                 f"\n[{epoch:03d}] SPECTRAL SCORE |",
+                f"S_SPEC:  {val_stats.get('S_SPEC', float('nan')):5.5f} |",
                 f"S_SAM: {val_stats.get('S_SAM', float('nan')):5.5f}",
                 f"S_SID: {val_stats.get('S_SID', float('nan')):5.5f}",
-                f"S_ERGAS: {val_stats.get('S_ERGAS', float('nan')):5.5f} |",
-                f"S_SPEC: {val_stats.get('S_SPEC', float('nan')):5.5f}",
+                f"S_ERGAS: {val_stats.get('S_ERGAS', float('nan')):5.5f}",
 
-                f"\n[{epoch:03d}] SPATIAL SCORE |",
+                f"\n[{epoch:03d}] SPATIAL SCORE  |",
+                f"S_SPAT:  {val_stats.get('S_SPAT', float('nan')):5.5f} |",
                 f"S_PSNR: {val_stats.get('S_PSNR', float('nan')):5.5f}",
                 f"S_SSIM: {val_stats.get('SSIM', float('nan')):5.5f}",
-                f"S_SPAT: {val_stats.get('S_SPAT', float('nan')):5.5f}",
 
-                f"\n[{epoch:03d}] COLOR SCORE |",
+                f"\n[{epoch:03d}] COLOR SCORE    |",
                 f"S_COLOR: {val_stats.get('S_COLOR', float('nan')):5.5f}",
 
                 # --- Final Score ---
-                f"\n[{epoch:03d}] FINAL SCORE |",
+                f"\n[{epoch:03d}] FINAL SCORE    |",
                 f"SSC_arith: {val_stats.get('SSC_arith', float('nan')):5.5f}",
                 f"SSC_geom: {val_stats.get('SSC_geom', float('nan')):5.5f}",
             ]
