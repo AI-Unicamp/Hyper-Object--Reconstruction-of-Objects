@@ -4,7 +4,7 @@ import argparse
 import numpy as np 
 import matplotlib.pyplot as plt 
 
-from config import track2_cfg as config
+# from config import track2_cfg as config
 from utils.track2 import utils, torchmodel, metrics
 
 from datasets.hyper_object import HyperObjectDataset
@@ -16,10 +16,21 @@ from baselines import mstpp_up
 import torch
 import torchinfo
 from torchvision import transforms
+
+# dummy class to replace the old config
+class Config:
+    pass
+config = Config()
+config.crop_size = 128
+config.bands = np.arange(400, 1000, 10)
+config.batch_size = 1 # valor original: 2
+config.epochs = 1 # valor original: 14
+config.init_lr = 4e-4
+
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(device)
 
-# python track2_train.py --data_dir /mnt/data/2026-Hyper-Object-Data --model_name MST_Plus_Plus_Up
+# python track2_train.py --data_dir datasets/2026-Hyper-Object-Data --model_name MST_Plus_Plus_Up
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--data_dir', type = str, default = 'E:/hyper-skin-data/Hyper-Skin(MSI, NIR)', required=True, help = 'data directory')
