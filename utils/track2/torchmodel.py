@@ -3,6 +3,8 @@ import time
 import gc
 import torch.nn.functional as F
 
+from config import track2_cfg as config
+
 class create(object):
     def __init__(self, model_architecture, device,
                  loss_fn, optimizer, scheduler, epochs,
@@ -19,13 +21,37 @@ class create(object):
         self.model_saved_path = model_saved_path
 
 
+    # def train_fn(self, current_epoch, train_loader):
+    #     self.model.train() 
+    #     total_loss = 0.0 
+
+    #     for batch, data in enumerate(train_loader):  
+    #         x, y = data['input'], data['output']
+    #         x, y = x.float().to(self.device), y.float().to(self.device)
+
     def train_fn(self, current_epoch, train_loader):
         self.model.train() 
         total_loss = 0.0 
 
         for batch, data in enumerate(train_loader):  
             x, y = data['input'], data['output']
+
+            # ---- CROP ESPACIAL PARA REDUZIR MEMÓRIA NA GPU ----
+            crop = config.crop_size
+            _, _, H, W = x.shape
+
+            if H > crop or W > crop:
+                # random crop simples (em CPU)
+                top = torch.randint(0, max(H - crop + 1, 1), (1,)).item()
+                left = torch.randint(0, max(W - crop + 1, 1), (1,)).item()
+                x = x[..., top:top+crop, left:left+crop]
+                y = y[..., top:top+crop, left:left+crop]
+            # ----------------------------------------------------
+
             x, y = x.float().to(self.device), y.float().to(self.device)
+
+        # ================================================================
+
 
             # forward pass and compute the training loss
             pred = self.model(x)
@@ -47,14 +73,37 @@ class create(object):
                     
         return total_loss / len(train_loader)
 
+
+
+    # def valid_fn(self, valid_loader):
+    #     self.model.eval() 
+    #     total_loss = 0.0 
+
+    #     for batch, data in enumerate(valid_loader):
+    #         x, y = data['input'], data['output'] 
+    #         x, y = x.float().to(self.device), y.float().to(self.device)
+
     def valid_fn(self, valid_loader):
         self.model.eval() 
         total_loss = 0.0 
 
         for batch, data in enumerate(valid_loader):
             x, y = data['input'], data['output'] 
-            x, y = x.float().to(self.device), y.float().to(self.device)
 
+            # ---- MESMO CROP DA FUNÇÃO DE TREINO ----
+            crop = config.crop_size
+            _, _, H, W = x.shape
+            if H > crop or W > crop:
+                top = torch.randint(0, max(H - crop + 1, 1), (1,)).item()
+                left = torch.randint(0, max(W - crop + 1, 1), (1,)).item()
+                x = x[..., top:top+crop, left:left+crop]
+                y = y[..., top:top+crop, left:left+crop]
+            # -----------------------------------------
+
+            x, y = x.float().to(self.device), y.float().to(self.device)
+        # ==============================================================
+
+        
             with torch.no_grad():
                 pred = self.model(x)
             

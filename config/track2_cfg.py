@@ -1,7 +1,7 @@
 import numpy as np 
 
 # data parameters
-crop_size = 128 #320
+crop_size = 32 #320
 
 # data info
 bands = np.arange(400, 1000, 10)
