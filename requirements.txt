@@ -6,8 +6,10 @@ hdf5storage==0.2.1
 matplotlib==3.10.5
 numpy==2.3.2
 opencv-python==4.11.0.86
+pandas
 pillow==11.3.0
 scikit-learn==1.7.1
 torchinfo==1.8.0
 torchmetrics==1.8.1
 torchvision==0.21.0
+tqdm
