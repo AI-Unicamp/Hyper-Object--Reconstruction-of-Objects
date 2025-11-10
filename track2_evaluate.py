@@ -25,9 +25,10 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(f"Using device: {device}")
 
 # Paths
-data_dir = '/mnt/data/2026-Hyper-Object-Data'
+data_dir = 'datasets/2026-Hyper-Object-Data'
 model_path = 'runs/track2/saved-models/exp-MST_Plus_Plus_Up-CIE/model.pt'
 results_dir = 'runs/track2/results'
+
 os.makedirs(results_dir, exist_ok=True)
 
 
