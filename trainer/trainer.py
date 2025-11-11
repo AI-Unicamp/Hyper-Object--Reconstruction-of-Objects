@@ -16,11 +16,13 @@ from torch.utils.data import DataLoader
 # - render: function to convert HSI cube -> sRGB under D65
 from .losses import ReconLoss
 
-from config.track1_cfg import TrainerCfg
+from config.track1_cfg_default import TrainerCfg as TrainerCfg1
+from config.track2_cfg_default import TrainerCfg as TrainerCfg2
 from utils.helpers import _to_hwc
 from utils.metrics import sam, sid, ergas
 from utils.metrics import psnr, ssim
 from utils.visualizations import render_srgb_preview  # returns HxWx3 float [0,1]
+from utils.leaderboard_ssc import evaluate_pair_ssc
 
 class Trainer:
     """
@@ -39,7 +41,8 @@ class Trainer:
         val_loader: DataLoader,
         loss_fn: Optional[torch.nn.Module] = None,
         device: Optional[torch.device] = torch.device("cuda" if torch.cuda.is_available() else "cpu"),
-        cfg: TrainerCfg = TrainerCfg(),
+        # TODO: make trainer configs less messy. separate trainer configs from model configs
+        cfg: TrainerCfg1 | TrainerCfg2 = TrainerCfg1(),
     ):
         self.cfg = cfg
         self.train_loader = train_loader
@@ -62,8 +65,8 @@ class Trainer:
         # I/O
         self.out_dir = Path(self.cfg.out_dir)
         self.out_dir.mkdir(parents=True, exist_ok=True)
-        self.ckpt_best = self.out_dir / "model_best.pt"
-        self.ckpt_last = self.out_dir / "model_last.pt"
+        self.ckpt_best = self.out_dir / "model_best.tar"
+        self.ckpt_last = self.out_dir / "model_last.tar"
         self.log_csv = self.out_dir / self.cfg.log_csv_name
 
         # CSV header
@@ -72,8 +75,10 @@ class Trainer:
                 w = csv.writer(f)
                 header = [
                     "epoch", "lr", "train_loss", "val_loss",
-                    "SAM_deg", "SID", "ERGAS",
-                    "PSNR_dB", "SSIM", 
+                    "SAM_deg", "SID", "ERGAS", # spectral metrics
+                    "PSNR_dB", "SSIM",         # spatial metrics
+                    "E00",                     # color metric
+                    "SSC(arith)", "SSC(geom)"  # final score
                 ]
                 w.writerow(header)
 
@@ -95,12 +100,15 @@ class Trainer:
         self.model.train()
         running = 0.0
         n_samples = 0
-        t0 = time.time()
+        total_samples = len(self.train_loader.dataset)
 
+        total_grad_time = 0.0
+        total_time_start = time.time()
         for batch in self.train_loader:
             input_img  :   torch.Tensor = batch["input"].to(self.device, non_blocking=True)     # (N,c(1 or 3),H,W)
             output_cube:   torch.Tensor = batch["output"].to(self.device, non_blocking=True)    # (N,C,H,W)
 
+            grad_time_start = time.time()
             self.optimizer.zero_grad(set_to_none=True)
             if self.scaler is None:
                 pred, loss = self._forward_loss(input_img, output_cube)
@@ -112,19 +120,29 @@ class Trainer:
                 self.scaler.scale(loss).backward()
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
+            grad_time = time.time() - grad_time_start
+            total_grad_time += grad_time
 
             running += float(loss.item()) * input_img.size(0)
             n_samples += input_img.size(0)
+            if n_samples > 0:
+                print(f"[{epoch:03d}] (training...) running avg loss: {(running / n_samples):7.6f}   [ {n_samples:3d} / {total_samples:3d}]", end = '\r')
 
         if self.scheduler is not None:
             self.scheduler.step()
 
         avg = running / max(n_samples, 1)
-        dt = time.time() - t0
+
+        total_time = time.time() - total_time_start
+        print(f"\n[{epoch:03d}] training finished.",
+              f"Total time: {total_time:.3f}s",
+              f"/ Train time: {total_grad_time:.3f}s",
+              f"/ I/O time: {(total_time-total_grad_time):.3f}s")
+
         return avg
 
     @torch.no_grad()
-    def validate(self, epoch: int) -> Dict[str, float]:
+    def validate(self, epoch: int, validate_metrics: bool) -> Dict[str, float]:
         """
         Returns dict with: val_loss, SAM_deg, SID, ERGAS, PSNR_dB, SSIM, (DeltaE00 optional).
         """
@@ -132,52 +150,74 @@ class Trainer:
 
         loss_sum = 0.0
         n_samples = 0
+        total_samples = len(self.val_loader.dataset)
 
-        sam_list: List[float] = []
-        sid_list: List[float] = []
-        erg_list: List[float] = []
-        psnr_list: List[float] = []
-        ssim_list: List[float] = []
+        lists_dict: Dict[str, List[float]] = {}
+        metric_keys = [
+                # raw metrics
+                "SAM_deg", "SID", "ERGAS", # spectral
+                "PSNR_dB", "SSIM",         # spatial
+                "DeltaE00",                # color
 
+                # normalized metrics
+                "S_SAM", "S_SID", "S_ERGAS", "S_PSNR", "S_SSIM",
+
+                # grouped scores
+                "S_SPEC", "S_SPAT", "S_COLOR",
+
+                # final scores, using arithmetic and geometric mean
+                "SSC_arith", "SSC_geom"
+        ]
+
+        for k in metric_keys:
+            lists_dict[k] = []
+
+        total_val_time = 0.0
+        total_time_start = time.time()
 
         for batch in self.val_loader:
             input_img  :   torch.Tensor = batch["input"].to(self.device, non_blocking=True)
             output_cube:   torch.Tensor = batch["output"].to(self.device, non_blocking=True)
 
             # forward (no grad)
-            pred_cube = self.model(input_img).clamp(0, 1)
-            loss = self.loss_fn(pred_cube, output_cube)
+            val_time_start = time.time()
+            with torch.no_grad():
+                pred_cube = self.model(input_img).clamp(0, 1)
+                loss = self.loss_fn(pred_cube, output_cube)
 
             loss_sum += float(loss.item()) * input_img.size(0)
             n_samples += input_img.size(0)
 
+            if n_samples > 0:
+                print(f"[{epoch:03d}] (validating...) running avg loss: {(loss_sum / n_samples):7.6f}   [ {n_samples:3d} / {total_samples:3d}]", end = '\r')
+
             # per-sample metrics
-            for i in range(pred_cube.size(0)):
-                # --- spectral metrics (means over mask) ---
-                sam_mean = sam(output_cube[i].detach().cpu().numpy(), pred_cube[i].detach().cpu().numpy(), reduction="mean", mask=mask)      # deg (↓)
-                sid_mean = sid(output_cube[i].detach().cpu().numpy(), pred_cube[i].detach().cpu().numpy(), reduction="mean", mask=mask)      # (↓)
-                erg_val  = ergas(output_cube[i].detach().cpu().numpy(), pred_cube[i].detach().cpu().numpy(), scale=1.0)                      # (↓)
+            if validate_metrics:
+                for i in range(pred_cube.size(0)):
+                    # --- spectral metrics (means over mask) ---
 
-                psnr_val = psnr(output_cube[i].detach().cpu().numpy(), pred_cube[i].detach().cpu().numpy(), data_range=1.0, mask=mask)
-                ssim_val = ssim(output_cube[i].detach().cpu().numpy(), pred_cube[i].detach().cpu().numpy(), data_range=1.0, mask=mask)
+                    # FIXME: it's better now but still somewhat slow. are there more improvements to make?
+                    scores = evaluate_pair_ssc(output_cube[i].detach(), pred_cube[i].detach(), wl_nm=self.cfg.wl_61)
 
-                dE_mean  = _deltaE00_mean(output_cube[i].detach().cpu().numpy(), pred_cube[i].detach().cpu().numpy())
+                    for k in metric_keys:
+                        lists_dict[k].append(scores[k])
 
+            val_time = time.time() - val_time_start
+            total_val_time += val_time
 
-                sam_list.append(scores["SAM_deg"])
-                sid_list.append(scores["SID"])
-                erg_list.append(scores["ERGAS"])
-                psnr_list.append(scores["PSNR_dB"])
-                ssim_list.append(scores["SSIM"])
-
+        total_time = time.time() - total_time_start
+        print(f"\n[{epoch:03d}] validation finished.",
+              f"Time: {total_time:.3f}s",
+              f"/ Val time: {total_val_time:.3f}s",
+              f"/ I/O time: {(total_time-total_val_time):.3f}s")
 
         out: Dict[str, float] = {}
         out["val_loss"] = loss_sum / max(n_samples, 1)
-        out["SAM_deg"]  = float(np.mean(sam_list)) if sam_list else float("nan")
-        out["SID"]      = float(np.mean(sid_list)) if sid_list else float("nan")
-        out["ERGAS"]    = float(np.mean(erg_list)) if erg_list else float("nan")
-        out["PSNR_dB"]  = float(np.mean(psnr_list)) if psnr_list else float("nan")
-        out["SSIM"]     = float(np.mean(ssim_list)) if ssim_list else float("nan")
+        for k in metric_keys:
+            if not lists_dict[k]:
+                out[k] = float("nan")
+            else:
+                out[k] = float(np.mean(lists_dict[k]))
         return out
 
     def _current_lr(self) -> float:
@@ -196,25 +236,52 @@ class Trainer:
             val_stats.get("ERGAS", float("nan")),
             val_stats.get("PSNR_dB", float("nan")),
             val_stats.get("SSIM", float("nan")),
+            val_stats.get("E00", float("nan")),
+            val_stats.get("SSC_arith", float("nan")),
+            val_stats.get("SSC_geom", float("nan"))
         ]
         with open(self.log_csv, "a", newline="") as f:
             csv.writer(f).writerow(row)
 
-    def _print_epoch(self, epoch: int, train_loss: float, val_stats: Dict[str, float]):
+    def _print_epoch(self, epoch: int, train_loss: float, val_stats: Dict[str, float], report_metrics: bool):
         parts = [
             # --- Epoch and Learning Info ---
-            f"[{epoch:03d}]",
+            f"[{epoch:03d}] epoch finished |",
             f"lr: {self._current_lr():.2e}",
             f"train: {train_loss:7.4f}",
-            f"val: {val_stats.get('val_loss', float('nan')):7.4f} | ",
-
-            # --- Core Reconstruction Metrics ---
-            f"SAM(deg): {val_stats.get('SAM_deg', float('nan')):6.2f}",
-            f"SID: {val_stats.get('SID', float('nan')):7.4f}",
-            f"ERGAS: {val_stats.get('ERGAS', float('nan')):6.3f}",
-            f"PSNR(dB): {val_stats.get('PSNR_dB', float('nan')):6.2f}",
-            f"SSIM: {val_stats.get('SSIM', float('nan')):5.3f} | ",
+            f"val: {val_stats.get('val_loss', float('nan')):7.4f}"
         ]
+
+        if report_metrics:
+            parts += [
+                # --- Core Reconstruction Metrics ---
+                f"\n[{epoch:03d}] RAW METRICS    |",
+                f"SAM(deg): {val_stats.get('SAM_deg', float('nan')):6.2f}",
+                f"SID: {val_stats.get('SID', float('nan')):7.4f}",
+                f"ERGAS: {val_stats.get('ERGAS', float('nan')):6.3f}",
+                f"PSNR(dB): {val_stats.get('PSNR_dB', float('nan')):6.2f}",
+                f"SSIM: {val_stats.get('SSIM', float('nan')):5.3f}",
+                f"DE00: {val_stats.get('DeltaE00', float('nan')):5.3f}",
+
+                f"\n[{epoch:03d}] SPECTRAL SCORE |",
+                f"S_SPEC:  {val_stats.get('S_SPEC', float('nan')):5.5f} |",
+                f"S_SAM: {val_stats.get('S_SAM', float('nan')):5.5f}",
+                f"S_SID: {val_stats.get('S_SID', float('nan')):5.5f}",
+                f"S_ERGAS: {val_stats.get('S_ERGAS', float('nan')):5.5f}",
+
+                f"\n[{epoch:03d}] SPATIAL SCORE  |",
+                f"S_SPAT:  {val_stats.get('S_SPAT', float('nan')):5.5f} |",
+                f"S_PSNR: {val_stats.get('S_PSNR', float('nan')):5.5f}",
+                f"S_SSIM: {val_stats.get('SSIM', float('nan')):5.5f}",
+
+                f"\n[{epoch:03d}] COLOR SCORE    |",
+                f"S_COLOR: {val_stats.get('S_COLOR', float('nan')):5.5f}",
+
+                # --- Final Score ---
+                f"\n[{epoch:03d}] FINAL SCORE    |",
+                f"SSC_arith: {val_stats.get('SSC_arith', float('nan')):5.5f}",
+                f"SSC_geom: {val_stats.get('SSC_geom', float('nan')):5.5f}",
+            ]
         print("  ".join(parts))
 
     def _save_checkpoint(self, epoch: int, is_best: bool):
@@ -233,8 +300,11 @@ class Trainer:
         print(f"Start training for {self.cfg.epochs} epochs. Logs → {self.log_csv}")
         for ep in range(1, self.cfg.epochs + 1):
             train_loss = self.train_epoch(ep)
-            val_stats = self.validate(ep)
-            self._print_epoch(ep, train_loss, val_stats)
+
+            validate_metrics: bool = (ep % self.cfg.metrics_report_interval == 0)
+            val_stats = self.validate(ep, validate_metrics=validate_metrics)
+
+            self._print_epoch(ep, train_loss, val_stats, report_metrics=validate_metrics)
             self._log_csv(ep, train_loss, val_stats)
 
             is_best = val_stats["val_loss"] < self.best_val

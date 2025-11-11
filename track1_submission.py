@@ -7,8 +7,8 @@ import pandas as pd
 
 from datasets.hyper_object import HyperObjectDataset
 
-from baselines.mstpp_up import MST_Plus_Plus_LateUpsample
-from config.track2_cfg_default import TrainerCfg
+from baselines.raw2hsi import Raw2HSI
+from config.track1_cfg_default import TrainerCfg
 
 # TODO: create unified submission script
 # TODO: allow models other than baseline
@@ -23,8 +23,8 @@ TARGET_IDS = {
     "Category-4_a_0018",
 }
 
-data_dir = 'data/track2'
-model_path = 'runs/track2/mstpp_up_baseline/model_best.tar' # change to model path
+data_dir = 'data/track1'
+model_path = 'runs/track1/mosaic2hsi_baseline/model_best.tar' # change to model path
 submission_files_dir = 'runs/submission_files'
 submission_zip_path = f'{submission_files_dir}/submission.zip'
 
@@ -40,7 +40,7 @@ def create_submission():
 
     submission_dataset = HyperObjectDataset(
         data_root=f'{data_dir}',
-        track=2,
+        track=1,
         train=False,
         submission=True,
     )
@@ -57,17 +57,12 @@ def create_submission():
 
     # make sure settings match training settings! change below if needed
     cfg = TrainerCfg()
-    model = MST_Plus_Plus_LateUpsample(in_channels=cfg.in_channels,
-                                       out_channels=cfg.out_channels,
-                                       n_feat=cfg.n_feat,
-                                       stage=cfg.stage,
-                                       upscale_factor=cfg.upscale_factor)
+    model = Raw2HSI(base_ch=cfg.base_ch, n_blocks=cfg.n_blocks, out_bands=cfg.out_bands)
 
     checkpoint = torch.load(model_path, map_location=device, weights_only=True)
     model.load_state_dict(checkpoint["model"])
     model.to(device)
     model.eval()
-    model.return_hr = True # do upscaling
 
     print("\nGenerating predictions...")
     for data in tqdm(test_loader, desc="Generating predictions"):
