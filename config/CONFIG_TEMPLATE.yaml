@@ -1,0 +1,36 @@
+train:
+  batch_size_train: 4  # batch size. higher users more VRAM
+  num_workers_train: 4 # num. of processes for loading data. higher uses more RAM
+  batch_size_test: 4   # batch size. higher users more VRAM
+  num_workers_test: 3  # num. of processes for loading data. higher uses more RAM
+
+  epochs: 1000 
+  amp: True # whether to use autoscaling
+
+  optim: "adamw"       # which optimizer to use. options: ['adam', 'adamw']
+  lr: 0.0002           # learning rate
+  weight_decay: 0.0001 # weight decay for adam/adamw
+
+  scheduler: "cosine" # learning rate scheduler. options: ['cosine', 'none']
+  eta_min: 0.000001   # minimum learning rate for cosine annealing scheduler
+
+  # TODO: add option for which loss to use?
+  lambda_sam: 0.1     # coefficient for SAM in recon loss 
+
+  # how many epochs to wait before testing all metrics
+  metrics_report_interval: 5
+
+model:
+  model_name: "[insert_name]" # model to use
+  
+  # add settings for model parameters below, e.g:
+  # parameter1: value1
+  # parameter2: "value2"
+
+# TODO: improve options for transforms
+transforms:
+  # whether to apply certain transforms
+  random_crop: False
+  crop_size: 320
+  random_flip: False
+

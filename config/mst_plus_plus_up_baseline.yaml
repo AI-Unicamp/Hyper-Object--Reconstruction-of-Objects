@@ -1,0 +1,33 @@
+train:
+  batch_size_train: 2  
+  num_workers_train: 0 
+  batch_size_test: 2   
+  num_workers_test: 0  
+
+  epochs: 1000 
+  amp: True
+
+  optim: "adam"
+  lr: 0.0004
+  weight_decay: 0
+
+  scheduler: "cosine"
+  eta_min: 0.000001
+
+  lambda_sam: 0.1
+
+  metrics_report_interval: 5
+
+model:
+  model_name: "mst_plus_plus_up"
+  
+  in_channels: 3 
+  out_channels: 61
+  n_feat: 61 
+  stage: 3 
+  upscale_factor: 2
+
+transforms:
+  random_crop: True
+  crop_size: 128 # 320
+  random_flip: True

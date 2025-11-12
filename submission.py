@@ -1,16 +1,55 @@
+import yaml
 import os
 import zipfile
 import numpy as np
 import torch
+import argparse
+from datetime import datetime
 from tqdm import tqdm
-from torch.utils.data import Subset
 import pandas as pd
 
 from datasets.hyper_object import HyperObjectDataset
-from baselines import mstpp_up
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-print(f"Using device: {device}")
+from models import setup_model
+
+from typing import Dict, Any
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-t", "--track", type=int, required=True, help="track to run")
+parser.add_argument("-d", "--data_dir", type=str, default="./data", required=False, help="path to dataset directory")
+parser.add_argument("-c", "--config", type=str, required=False, help="path of config file to use (defaults to baselines for each track)")
+
+parser.add_argument("-o", "--out_dir", type=str, default="submission_files", required=False, help="directory to output submission files")
+parser.add_argument("--model", type=str, required=True, help="path to model to submit")
+
+args = parser.parse_args()
+
+if args.config is None:
+    if args.track == 1:
+        config_path = "config/raw2hsi_baseline.yaml"
+    elif args.track == 2:
+        config_path = "config/mst_plus_plus_up_baseline.yaml"
+    else:
+        raise ValueError(f"'{args.track}' is invalid value for track: must be 1 or 2.")
+else:
+    config_path = args.config
+
+config: Dict[str, Any]
+with open(config_path, "r") as file:
+    config = yaml.load(file, Loader=yaml.FullLoader)
+
+if "model" not in config:
+    raise ValueError("No model settings found.")
+elif "model_name" not in config["model"]:
+    raise ValueError("No model name found.")
+
+model_config = config["model"]
+
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+else:
+    print("WARNING: GPU not found, using CPU to run.")
+    device = torch.device("cpu")
 
 TARGET_IDS = {
     "Category-1_a_0007",
@@ -19,13 +58,14 @@ TARGET_IDS = {
     "Category-4_a_0018",
 }
 
-data_dir = '/mnt/data/2026-Hyper-Object-Data'
-model_path = 'runs/track2/saved-models/exp-MST_Plus_Plus_Up-CIE/model.pt'
-submission_files_dir = 'submission_files'
-submission_zip_path = 'submission.zip'
+data_dir = args.data_dir
+model_path = args.model
 
-MODEL_NAME = 'MST_Plus_Plus_Up'
-UPSCALE_FACTOR = 2
+config_name = os.path.splitext(os.path.basename(config_path))[0]
+submission_files_dir = f"{args.out_dir}/{datetime.now().strftime("%Y_%m_%d_%H_%M_%S")}_{config_name}"
+submission_zip_path = f'{submission_files_dir}/submission.zip'
+
+# use batch 1, it's 4 images anyway
 BATCH_SIZE = 1
 
 def create_submission():
@@ -36,38 +76,29 @@ def create_submission():
     os.makedirs(submission_files_dir, exist_ok=True)
     print(f"Individual prediction files will be saved in: '{submission_files_dir}'")
 
-    full_ds_test = HyperObjectDataset(
-        data_root=f'{data_dir}',
-        track=2,
+    submission_dataset = HyperObjectDataset(
+        data_root=f'{data_dir}/track{args.track}',
+        track=args.track,
         train=False,
+        submission=True,
     )
-
-    if TARGET_IDS is not None:
-        print(f"Filtering dataset to {len(TARGET_IDS)} specific IDs for testing.")
-        desired_indices = [i for i, sample in enumerate(full_ds_test) if sample['id'] in TARGET_IDS]
-        submission_dataset = Subset(full_ds_test, desired_indices)
-    else:
-        print("Processing the full test dataset for final submission.")
-        submission_dataset = full_ds_test
 
     test_loader = torch.utils.data.DataLoader(
         dataset=submission_dataset,
         batch_size=BATCH_SIZE,
         shuffle=False,
-        pin_memory=True if device == 'cuda' else False
     )
     print(f"DataLoader created for {len(submission_dataset)} samples.")
 
     print(f"Loading checkpoint from: {model_path}")
-    model = mstpp_up.MST_Plus_Plus_LateUpsample(
-        in_channels=3, out_channels=61, n_feat=61, stage=3, upscale_factor=UPSCALE_FACTOR
-    )
-    checkpoint = torch.load(model_path, map_location=device)
-    model.load_state_dict(checkpoint)
+
+    # make sure settings match training settings! change below if needed
+    model = setup_model(model_config)
+
+    checkpoint = torch.load(model_path, map_location=device, weights_only=True)
+    model.load_state_dict(checkpoint["model"])
     model.to(device)
     model.eval()
-    model.return_hr = True
-    print(f"Model '{MODEL_NAME}' loaded and set to HR evaluation mode.")
 
     print("\nGenerating predictions...")
     for data in tqdm(test_loader, desc="Generating predictions"):
