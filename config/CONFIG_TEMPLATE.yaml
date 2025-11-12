@@ -21,11 +21,11 @@ train:
   metrics_report_interval: 5
 
 model:
-  model_name: "[insert_name]" # model to use
+  model_name: "example" # model to use
   
   # add settings for model parameters below, e.g:
-  # parameter1: value1
-  # parameter2: "value2"
+  param1: value1
+  param2: "value2"
 
 # TODO: improve options for transforms
 transforms:

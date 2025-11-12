@@ -2,13 +2,14 @@ from baselines.raw2hsi import Raw2HSI
 from baselines.mstpp_up import MST_Plus_Plus_LateUpsample
 
 # to add a model that is in this folder:
-# from . import ModelName
+# from .file import ModelName
+from .example import Example
 
-from torch.nn import Module
+import torch
 from typing import Dict, Any
 
-def setup_model(config: Dict[str, Any]) -> Module:
-    model: Module
+def setup_model(config: Dict[str, Any]) -> torch.nn.Module:
+    model: torch.nn.Module
     match config["model_name"]:
         case "raw2hsi":
             model = Raw2HSI(base_ch=config.get("base_ch", 64),
@@ -31,12 +32,16 @@ def setup_model(config: Dict[str, Any]) -> Module:
                                                upscale_factor=config.get("upscale_factor", 2))
             model.return_hr = True
 
-        # NOTE: to add a new model:
-        # case "[model_name]":
-        #     model = Model(parameter1=config.get("parameter1", default_value1),
-        #                   parameter2=config.get("parameter2", default_value2),
-        #                   ...)
-        # use parameters that you have added to the model's config file
+        # to add a new model:
+        case "example":
+            model = Example(param1=config.get("param1", ...),
+                            param2=config.get("param2", ...))
+
+            # if using pre-trained data, do something like
+            pretrained = torch.load(config.get("pretrained_path", ...), weights_only=True)
+            model.load_state_dict(pretrained)
+
+            # and so on
 
         case _:
             raise ValueError(f"'{config['model_name']}'' is not a valid model")
