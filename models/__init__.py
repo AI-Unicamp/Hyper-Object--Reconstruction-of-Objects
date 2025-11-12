@@ -39,6 +39,6 @@ def setup_model(config: Dict[str, Any]) -> Module:
         # use parameters that you have added to the model's config file
 
         case _:
-            raise ValueError(f"'{config["model_name"]}'' is not a valid model")
+            raise ValueError(f"'{config['model_name']}'' is not a valid model")
 
     return model

@@ -62,7 +62,7 @@ data_dir = args.data_dir
 model_path = args.model
 
 config_name = os.path.splitext(os.path.basename(config_path))[0]
-submission_files_dir = f"{args.out_dir}/{datetime.now().strftime("%Y_%m_%d_%H_%M_%S")}_{config_name}"
+submission_files_dir = f"{args.out_dir}/{datetime.now().strftime('%Y_%m_%d_%H_%M_%S')}_{config_name}"
 submission_zip_path = f'{submission_files_dir}/submission.zip'
 
 # use batch 1, it's 4 images anyway

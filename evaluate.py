@@ -48,7 +48,7 @@ elif "model_name" not in config["model"]:
 
 model_config = config["model"]
 
-print(f"Preparing to train model '{model_config["model"]}'...")
+print(f"Preparing to evaluate model '{model_config['model_name']}'...")
 if torch.cuda.is_available():
     device = torch.device("cuda")
 else:
@@ -91,6 +91,8 @@ metric_keys = [
         # final scores, using arithmetic and geometric mean
         "SSC_arith", "SSC_geom"
 ]
+for k in metric_keys:
+    lists_dict[k] = []
 
 for data in tqdm(test_loader, desc="Evaluating test data..."):
     input_img  :   torch.Tensor = data["input"].to(device, non_blocking=True)
