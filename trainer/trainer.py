@@ -215,9 +215,7 @@ class Trainer:
             if validate_metrics:
                 for i in range(pred_cube.size(0)):
                     # --- spectral metrics (means over mask) ---
-
-                    # FIXME: it's better now but still somewhat slow. are there more improvements to make?
-                    scores = evaluate_pair_ssc(output_cube[i].detach(), pred_cube[i].detach(), wl_nm=self.cfg.wl_61)
+                    scores = evaluate_pair_ssc(output_cube[i].detach(), pred_cube[i].detach())
 
                     for k in metric_keys:
                         lists_dict[k].append(scores[k])

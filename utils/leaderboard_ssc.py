@@ -44,7 +44,7 @@ def sid_metric(pred: torch.Tensor, gt: torch.Tensor, eps = 1e-12):
 def evaluate_pair_ssc(
     gt_cube: torch.Tensor,       # HxWxC or CxHxW reflectance [0,1]
     pr_cube: torch.Tensor,       # HxWxC or CxHxW
-    wl_nm: np.ndarray,         # (C,)
+    # wl_nm: np.ndarray,         # (C,)
     mask: Optional[np.ndarray] = None,  # HxW bool
 
     # weights for the 3 groups (spectral, spatial, color)

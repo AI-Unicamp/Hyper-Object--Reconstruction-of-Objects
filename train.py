@@ -121,6 +121,7 @@ trainer = Trainer(
     val_loader=val_loader,
     loss_fn=loss_fn,
     cfg=cfg,
+    device=device
 )
 
 trainer.fit()
