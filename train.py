@@ -49,7 +49,7 @@ model_config = config["model"]
 train_config = config.get("train", {})
 transforms_config = config.get("transforms", {})
 
-print(f"Preparing to train model '{model_config["model"]}'...")
+print(f"Preparing to train model '{model_config}'...")
 if torch.cuda.is_available():
     device = torch.device("cuda")
 else:
@@ -97,7 +97,7 @@ val_loader  = DataLoader(
     )
 
 config_name = os.path.splitext(os.path.basename(config_path))[0]
-out_dir = f"runs/track{args.track}/{datetime.now().strftime("%Y_%m_%d_%H_%M_%S")}_{config_name}"
+out_dir = f"runs/track{args.track}/{datetime.now().strftime('%Y_%m_%d_%H_%M_%S')}_{config_name}"
 cfg = TrainerCfg(
         out_dir=out_dir,
         epochs=train_config.get("epochs", 1000),
