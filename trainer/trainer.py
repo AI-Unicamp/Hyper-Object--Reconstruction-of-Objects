@@ -1,11 +1,10 @@
 from __future__ import annotations
 from pathlib import Path
-from typing import Optional, Tuple, Dict, Any, List
+from typing import Optional, Tuple, Dict, List
 
 import csv
 import time
 import numpy as np
-import colour
 
 import torch
 from torch.utils.data import DataLoader
@@ -16,13 +15,30 @@ from torch.utils.data import DataLoader
 # - render: function to convert HSI cube -> sRGB under D65
 from .losses import ReconLoss
 
-from config.track1_cfg_default import TrainerCfg as TrainerCfg1
-from config.track2_cfg_default import TrainerCfg as TrainerCfg2
-from utils.helpers import _to_hwc
-from utils.metrics import sam, sid, ergas
-from utils.metrics import psnr, ssim
-from utils.visualizations import render_srgb_preview  # returns HxWx3 float [0,1]
 from utils.leaderboard_ssc import evaluate_pair_ssc
+
+from dataclasses import dataclass
+from typing import Literal
+
+@dataclass
+class TrainerCfg:
+    out_dir: str = "runs/track1/mosaic2hsi_baseline"
+    epochs: int = 1000
+    amp: bool = True
+
+    # Optimizer & scheduler settings
+    optim: Literal["adam", "adamw"] = "adamw"
+    lr: float = 2e-4
+    weight_decay: float = 1e-4
+    scheduler_type: Literal["cosine", "none"] = "cosine"
+    eta_min: float = 1e-6
+
+    lambda_sam: float = 0.1  # SAM loss weight
+
+    # how many epochs to wait before evaluating all metrics
+    metrics_report_interval: int = 5
+
+# TODO: allow training from checkpoint
 
 class Trainer:
     """
@@ -41,8 +57,7 @@ class Trainer:
         val_loader: DataLoader,
         loss_fn: Optional[torch.nn.Module] = None,
         device: Optional[torch.device] = torch.device("cuda" if torch.cuda.is_available() else "cpu"),
-        # TODO: make trainer configs less messy. separate trainer configs from model configs
-        cfg: TrainerCfg1 | TrainerCfg2 = TrainerCfg1(),
+        cfg: TrainerCfg = TrainerCfg(),
     ):
         self.cfg = cfg
         self.train_loader = train_loader
@@ -54,8 +69,13 @@ class Trainer:
         self.scaler = torch.cuda.amp.GradScaler() if (self.cfg.amp and self.device.type == "cuda") else None
         self.loss_fn = loss_fn if loss_fn is not None else ReconLoss(lambda_sam=0.1)
         
-        self.wl_nm = cfg.wl_61  # wavelength vector for rendering
-        self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.cfg.lr, weight_decay=self.cfg.weight_decay)
+        if cfg.optim == "adamw":
+            self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.cfg.lr, weight_decay=self.cfg.weight_decay)
+        elif cfg.optim == "adam":
+            self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.cfg.lr, weight_decay=self.cfg.weight_decay)
+        else:
+            raise ValueError(f"'{cfg.optim}' is not a valid optimizer. Must be: 'adam' or 'adamw'")
+
 
         if self.cfg.scheduler_type == "cosine":
             self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=self.cfg.epochs, eta_min=self.cfg.eta_min)
@@ -67,7 +87,7 @@ class Trainer:
         self.out_dir.mkdir(parents=True, exist_ok=True)
         self.ckpt_best = self.out_dir / "model_best.tar"
         self.ckpt_last = self.out_dir / "model_last.tar"
-        self.log_csv = self.out_dir / self.cfg.log_csv_name
+        self.log_csv = self.out_dir / "train_log.csv"
 
         # CSV header
         if not self.log_csv.exists():
@@ -292,7 +312,7 @@ class Trainer:
             "scheduler": self.scheduler.state_dict() if self.scheduler is not None else None,
         }
         torch.save(state, self.ckpt_last)
-        if is_best and self.cfg.save_best:
+        if is_best:
             torch.save(state, self.ckpt_best)
             print(f"[Saved BEST model @ epoch {epoch}] → {self.ckpt_best}")
 
