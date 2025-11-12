@@ -13,4 +13,4 @@ torchinfo==1.8.0
 torchmetrics==1.8.1
 torchvision==0.21.0
 tqdm
-PyYAML
+PyYAML==6.0.3
