@@ -9,7 +9,15 @@ from trainer.losses import ReconLoss
 from trainer.trainer import Trainer, TrainerCfg
 
 from datasets.hyper_object import HyperObjectDataset
-from datasets.transform import random_crop, random_flip
+# from datasets.transform import random_crop, random_flip
+from datasets.transform import (
+    random_crop,
+    random_flip,
+    random_rot90,
+    add_rgb_gaussian_noise,
+    spectral_jitter,
+)
+
 
 from models import setup_model
 
@@ -62,6 +70,23 @@ if transforms_config.get("random_crop", False):
     transforms.append(lambda batch: random_crop(batch, ps=transforms_config.get("crop_size", 320), track=args.track))
 if transforms_config.get("random_flip", False):
     transforms.append(random_flip)
+
+###########################################
+# NEW: random 90-degree rotations
+if transforms_config.get("random_rot90", False):
+    transforms.append(random_rot90)
+
+# NEW: RGB Gaussian noise
+if transforms_config.get("rgb_gaussian_noise", False):
+    sigma = transforms_config.get("rgb_noise_sigma", 0.01)
+    transforms.append(lambda batch, s=sigma: add_rgb_gaussian_noise(batch, sigma=s))
+
+# NEW: HSI spectral jitter
+if transforms_config.get("spectral_jitter", False):
+    sigma = transforms_config.get("spectral_jitter_sigma", 0.02)
+    transforms.append(lambda batch, s=sigma: spectral_jitter(batch, sigma=s))
+############################################
+
 
 def transform(batch):
     for t in transforms:
