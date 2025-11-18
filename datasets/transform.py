@@ -92,7 +92,7 @@ def add_input_gaussian_noise(batch, sigma=0.01):
     return batch
 
 
-def spectral_jitter_output(batch, sigma=0.02):
+def spectral_jitter(batch, sigma=0.02):
     """
     Spectral jitter for the HSI cube:
     multiplicative band-wise noise.

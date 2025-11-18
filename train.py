@@ -14,7 +14,7 @@ from datasets.transform import (
     random_crop,
     random_flip,
     random_rot90,
-    add_rgb_gaussian_noise,
+    add_input_gaussian_noise,
     spectral_jitter,
 )
 
@@ -79,7 +79,7 @@ if transforms_config.get("random_rot90", False):
 # NEW: RGB Gaussian noise
 if transforms_config.get("rgb_gaussian_noise", False):
     sigma = transforms_config.get("rgb_noise_sigma", 0.01)
-    transforms.append(lambda batch, s=sigma: add_rgb_gaussian_noise(batch, sigma=s))
+    transforms.append(lambda batch, s=sigma: add_input_gaussian_noise(batch, sigma=s))
 
 # NEW: HSI spectral jitter
 if transforms_config.get("spectral_jitter", False):
