@@ -1,4 +1,5 @@
 from __future__ import annotations
+import wandb
 from pathlib import Path
 from typing import Optional, Tuple, Dict, List
 
@@ -58,6 +59,7 @@ class Trainer:
         loss_fn: Optional[torch.nn.Module] = None,
         device: Optional[torch.device] = torch.device("cuda" if torch.cuda.is_available() else "cpu"),
         cfg: TrainerCfg = TrainerCfg(),
+        wandb_run: Optional[wandb.Run] = None
     ):
         self.cfg = cfg
         self.train_loader = train_loader
@@ -104,6 +106,10 @@ class Trainer:
 
         self.best_val = float("inf")
 
+        self.wandb_run: Optional[wandb.Run] = wandb_run
+        if self.wandb_run is not None:
+            # align every metric to epoch
+            self.wandb_run.define_metric("*", step_metric="epoch")
 
     def _forward_loss(self, input_img: torch.Tensor, output_cube: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         if self.scaler is None:
@@ -148,10 +154,14 @@ class Trainer:
             if n_samples > 0:
                 print(f"[{epoch:03d}] (training...) running avg loss: {(running / n_samples):7.6f}   [ {n_samples:3d} / {total_samples:3d}]", end = '\r')
 
+        avg = running / max(n_samples, 1)
+
+        if self.wandb_run is not None:
+            self.wandb_run.log({"epoch": epoch, "lr": self._current_lr(), "train loss": avg})
+
         if self.scheduler is not None:
             self.scheduler.step()
 
-        avg = running / max(n_samples, 1)
 
         total_time = time.time() - total_time_start
         print(f"\n[{epoch:03d}] training finished.",
@@ -236,6 +246,12 @@ class Trainer:
                 out[k] = float("nan")
             else:
                 out[k] = float(np.mean(lists_dict[k]))
+
+        if self.wandb_run is not None:
+            wandb_out = out.copy()
+            wandb_out["epoch"] = epoch
+            self.wandb_run.log(wandb_out)
+
         return out
 
     def _current_lr(self) -> float:

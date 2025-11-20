@@ -5,6 +5,7 @@ datasets/hyper_object_all.py
 draft.ipynb
 
 runs/*
+wandb/
 
 # virtual environments
 venvs/

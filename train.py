@@ -1,4 +1,5 @@
 import torch
+import wandb
 import yaml
 import os
 import argparse
@@ -7,6 +8,7 @@ from datetime import datetime
 from torch.utils.data import DataLoader
 from trainer.losses import ReconLoss
 from trainer.trainer import Trainer, TrainerCfg
+from utils.tools_wandb import ToolsWandb
 
 from datasets.hyper_object import HyperObjectDataset
 from datasets.transform import random_crop, random_flip
@@ -22,7 +24,7 @@ parser.add_argument("-c", "--config", type=str, required=False, help="path of co
 
 # TODO: implement
 # parser.add_argument("--continue_from", type=str, required=False, help="checkpoint to start from")
-# parser.add_argument("--use_wandb", type=bool, default=False, required=False, help="log to wandb")
+parser.add_argument("--use_wandb", default=False, required=False, help="log to wandb", action="store_true")
 
 args = parser.parse_args()
 
@@ -97,7 +99,8 @@ val_loader  = DataLoader(
     )
 
 config_name = os.path.splitext(os.path.basename(config_path))[0]
-out_dir = f"runs/track{args.track}/{datetime.now().strftime('%Y_%m_%d_%H_%M_%S')}_{config_name}"
+run_name = f"{config_name}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+out_dir = f"runs/track{args.track}/{run_name}"
 cfg = TrainerCfg(
         out_dir=out_dir,
         epochs=train_config.get("epochs", 1000),
@@ -108,12 +111,21 @@ cfg = TrainerCfg(
         scheduler_type=train_config.get("scheduler","cosine"),
         eta_min=train_config.get("eta_min", 1e-6),
         lambda_sam=train_config.get("lambda_sam", 0.1),     
-        metrics_report_interval=train_config.get("metrics_report_interval", 5)
+        metrics_report_interval=train_config.get("metrics_report_interval", 5),
     )
 
 loss_fn = ReconLoss(lambda_sam=cfg.lambda_sam)
 
 model = setup_model(model_config)
+
+run_wandb = None
+flattened_config = {}
+ToolsWandb.config_flatten(config, flattened_config)
+if args.use_wandb:
+    run_wandb = ToolsWandb.init_wandb_run(
+            f_configurations=flattened_config,
+            run_name=run_name
+            )
 
 trainer = Trainer(
     model=model,
@@ -121,7 +133,12 @@ trainer = Trainer(
     val_loader=val_loader,
     loss_fn=loss_fn,
     cfg=cfg,
-    device=device
+    device=device,
+    wandb_run=run_wandb
 )
 
-trainer.fit()
+try:
+    trainer.fit()
+except KeyboardInterrupt:
+    if run_wandb is not None:
+        run_wandb.finish()
