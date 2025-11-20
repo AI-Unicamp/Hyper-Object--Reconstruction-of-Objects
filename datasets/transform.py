@@ -37,6 +37,9 @@ def random_crop(batch, ps=256, track=1):
         c = random.randint(0, W - ps)
 
         if track == 1:
+            # ensure coordinates are even; i.e. crop aligns with bayer pattern
+            r -= r % 2
+            c -= c % 2
             for k in keys:
                 if k in batch and isinstance(batch[k], torch.Tensor):
                     batch[k] = batch[k][:, r:r+ps, c:c+ps]

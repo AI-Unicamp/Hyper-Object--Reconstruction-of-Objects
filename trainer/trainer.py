@@ -242,9 +242,7 @@ class Trainer:
         out: Dict[str, float] = {}
         out["val_loss"] = loss_sum / max(n_samples, 1)
         for k in metric_keys:
-            if not lists_dict[k]:
-                out[k] = float("nan")
-            else:
+            if lists_dict[k]:
                 out[k] = float(np.mean(lists_dict[k]))
 
         if self.wandb_run is not None:
