@@ -1,0 +1,38 @@
+train:
+  batch_size_train: 1
+  num_workers_train: 0
+  batch_size_test: 4  
+  num_workers_test: 3 
+
+  epochs: 1000 
+  amp: False # True
+
+  optim: "adamw"
+  lr: 0.0004
+  weight_decay: 0.0001
+
+  scheduler: "cosine"
+  eta_min: 0.000001
+
+  lambda_sam: 0.1
+
+  metrics_report_interval: 5
+
+model:
+  model_name: "revsci_mstpp"
+
+  # revsci params
+  n_blocks: 12
+  n_split: 2
+  
+  # mst++ params
+  in_channels: 3 
+  out_channels: 61
+  n_feat: 61 
+  stage: 3 
+  upscale_factor: 2
+
+transforms:
+  random_crop: True
+  crop_size: 256
+  random_flip: True

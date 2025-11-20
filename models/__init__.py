@@ -1,6 +1,7 @@
 from baselines.raw2hsi import Raw2HSI
 from baselines.mstpp_up import MST_Plus_Plus_LateUpsample
 
+from .rev3dcnn import Rev3DCNN
 # to add a model that is in this folder:
 # from .file import ModelName
 from .example import Example
@@ -31,6 +32,20 @@ def setup_model(config: Dict[str, Any]) -> torch.nn.Module:
                                                stage=config.get("stage", 3),
                                                upscale_factor=config.get("upscale_factor", 2))
             model.return_hr = True
+        case "revsci_mstpp":
+            demosaic = Rev3DCNN(n_blocks=config.get("n_blocks", 12), n_split=config.get("n_split", 2))
+
+            mstpp = MST_Plus_Plus_LateUpsample(in_channels=config.get("in_channels", 3),
+                                               out_channels=config.get("out_channels", 61),
+                                               n_feat=config.get("n_feat", 61),
+                                               stage=config.get("stage", 3),
+                                               upscale_factor=config.get("upscale_factor", 1))
+            mstpp.return_hr = False
+            mstpp.force_direct_lr = config.get("force_direct_lr", True)
+
+            model = torch.nn.Sequential(
+                demosaic, mstpp
+                )
 
         # to add a new model:
         case "example":
