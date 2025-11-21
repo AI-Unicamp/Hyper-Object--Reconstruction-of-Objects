@@ -4,6 +4,13 @@ train:
   batch_size_test: 2   
   num_workers_test: 0  
 
+  fast:
+    num_workers_train_in: 1 
+    num_workers_train_out: 6 
+
+    num_workers_test_in: 1  
+    num_workers_test_out: 6  
+
   epochs: 1000 
   amp: True
 

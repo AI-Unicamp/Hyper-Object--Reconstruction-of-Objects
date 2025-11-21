@@ -15,3 +15,4 @@ torchvision==0.21.0
 tqdm
 PyYAML==6.0.3
 wandb==0.23.0
+zarr<3
