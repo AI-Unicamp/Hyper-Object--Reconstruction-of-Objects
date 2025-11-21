@@ -4,7 +4,7 @@ from typing import Dict, Optional, Tuple
 import torch
 import numpy as np
 
-from utils.render_srgb import hsi2rgb
+from utils.render_srgb import hsi2srgb
 
 from torchmetrics.functional.image import spectral_angle_mapper as sam_metric
 from torchmetrics.functional.image import peak_signal_noise_ratio as psnr_metric
@@ -73,8 +73,8 @@ def evaluate_pair_ssc(
     S_ERGAS  = _exp_score(erg_val,  taus["ergas"])
     S_spec   = (S_SAM * S_SID * S_ERGAS) ** (1/3)
 
-    gt_rgb_t = hsi2rgb(gt_cube)
-    pr_rgb_t = hsi2rgb(pr_cube)
+    gt_rgb_t = hsi2srgb(gt_cube)
+    pr_rgb_t = hsi2srgb(pr_cube)
     
     gt_rgb = gt_rgb_t.permute(1, 2, 0).cpu().numpy()
     pr_rgb = pr_rgb_t.permute(1, 2, 0).cpu().numpy()

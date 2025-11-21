@@ -12,6 +12,87 @@ from .helpers import _to_numpy, _ensure_chw, _chw_to_hwc01, _is_single_channel
 
 ArrayLike = Union[np.ndarray, torch.Tensor]
 
+from datasets.hyper_object import HyperObjectDataset
+from utils.render_srgb import hsi2xyz, xyz2rgb
+import concurrent.futures
+def visualize_in_out(idx=0, track=1, train=True):
+    exec = concurrent.futures.ThreadPoolExecutor()
+    ds = HyperObjectDataset(data_root=f"data/track{track}", track=track, train=train)
+
+    fig = plt.figure()
+    gs = fig.add_gridspec(2, 2, height_ratios=[20, 1], width_ratios=[1, 1])
+    ax_in = fig.add_subplot(gs[0, 0])
+    ax_in.set_title(f"Input {"Mosaic" if track==1 else "LR RGB"}")
+    ax_out = fig.add_subplot(gs[0, 1])
+    ax_out.set_title(f"RGB Render of Target HSI")
+    ax_sldr  = fig.add_subplot(gs[1, :])
+
+    def get_data(i):
+        if track == 1:
+            ax_in.imshow(np.zeros((1000, 1000)), cmap="gray")
+            ax_out.imshow(np.zeros((1000, 1000)), cmap="gray")
+        elif track == 2:
+            ax_in.imshow(np.zeros((512, 512, 3)), cmap="gray")
+            ax_out.imshow(np.zeros((1000, 1000, 3)), cmap="gray")
+
+
+        fig.suptitle(f"Loading image {i+1}...")
+
+        def read_img(ds):
+            batch = ds[i]
+            return batch
+
+        return exec.submit(read_img, ds)
+
+    def get_rgb(hsi):
+        return exec.submit(lambda hsi: xyz2rgb(hsi2xyz(hsi)).clip(0, 1).cpu(), hsi)
+
+    data_future = get_data(idx)
+    out_rgb_future = None
+
+    sldr = Slider(ax=ax_sldr, label="Image", valmin=1, valmax=len(ds), valinit=1, valstep=1)
+    prev_val = sldr.val
+
+    def on_key(event):
+        if event.key == "right":
+            sldr.set_val(min(sldr.val+1, len(ds)))
+        elif event.key == "left":
+            sldr.set_val(max(sldr.val-1, 0))
+    fig.canvas.mpl_connect("key_press_event", on_key)
+
+    img_id = ""
+    while plt.fignum_exists(fig.number):
+        plt.pause(0.1)
+
+        if sldr.val != prev_val:
+            if data_future is not None:
+                data_future.cancel()
+            if out_rgb_future is not None:
+                out_rgb_future.cancel()
+                out_rgb_future = None
+            data_future = get_data(sldr.val-1)
+            prev_val = sldr.val
+        elif data_future is None or not data_future.done():
+            continue
+        elif out_rgb_future is None: # data_future.done() == True
+            batch = data_future.result()
+
+            if track == 1:
+                ax_in.imshow(batch["input"].permute(1, 2, 0), cmap="gray")
+            elif track == 2:
+                ax_in.imshow(batch["input"].permute(1, 2, 0))
+
+            out_rgb_future = get_rgb(batch["output"])
+            img_id = batch["id"]
+        elif out_rgb_future.done():
+            ax_out.imshow(out_rgb_future.result())
+            fig.suptitle(f"Image {sldr.val}: {img_id}")
+            data_future = None
+            out_rgb_future = None
+
+    exec.shutdown(wait=False, cancel_futures=True)
+
+
 def visualize_sample_overview(
     sample: dict,
     index: int = 0,

@@ -6,8 +6,7 @@ from csv import reader
 # number of bands used for render (first 31)
 N_VIS_BANDS = 31
 
-# TODO: add masking, make into a module?
-def hsi2rgb(hsi: torch.Tensor):
+def hsi2xyz(hsi: torch.Tensor):
     illu = None
     cmf = None
 
@@ -39,16 +38,28 @@ def hsi2rgb(hsi: torch.Tensor):
     # render in CIE XYZ colorspace
     XYZ = torch.stack([X, Y, Z], dim=2).clamp(0.0, None)
 
-    # convert to linear RGB
+    return XYZ
+
+def xyz2rgb(xyz: torch.Tensor):
     M = torch.tensor([[ 3.2406, -1.5372, -0.4986],
                       [-0.9689,  1.8758,  0.0415],
-                      [ 0.0557, -0.2040,  1.0570]], dtype=torch.float64).to(dev)
-    rgb = XYZ @ M.T
+                      [ 0.0557, -0.2040,  1.0570]], dtype=torch.float64).to(xyz.device)
 
+    # convert to linear RGB
+    rgb = xyz @ M.T
+    return rgb
+
+def rgb2srgb(rgb: torch.Tensor):
     # convert to sRGB
     a = 0.055; threshold = 0.0031308
     sRGB = torch.where(rgb <= threshold, 12.92 * rgb,
                    (1 + a) * torch.pow(rgb, 1/2.4) - a)
+    return sRGB
+
+def hsi2srgb(hsi: torch.Tensor):
+    xyz = hsi2xyz(hsi)
+    rgb = xyz2rgb(xyz)
+    sRGB = rgb2srgb(rgb)
 
     # output as HWC
     return sRGB.permute((2, 0, 1)).to(torch.float32)
