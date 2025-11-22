@@ -158,6 +158,10 @@ class Rev3DCNN(nn.Module):
             nn.Conv3d(16, 1, kernel_size=3, stride=1, padding=1),
         )
 
+        # save output of conv1 and blocks when doing rev passes
+        self._last_out_conv1 = torch.tensor([])
+        self._last_out_revblocks = torch.tensor([])
+
     def forward(self, raw: Tensor) -> Tensor:
         """
         Args:
@@ -176,72 +180,53 @@ class Rev3DCNN(nn.Module):
         out = self.conv2(out).squeeze(1)
         return out
 
-    # TODO: allow reverse-mode training (preserves memory)
-    def for_backward(self,
-                     raw: Tensor,
-                     gt: Tensor,
-                     loss_fn: Callable[[Tensor, Tensor], Tensor],
-                     opt: Optional[Optimizer]) -> tuple[Tensor, Tensor]:
-        """Memory-efficient training using reversability. Uses less memory, but takes longer.
+    def rev_pass_forward(self, raw: Tensor) -> Tensor:
+        """Forward pass skipping gradients in rev blocks."""
+        out: Tensor = mosaic(raw)
 
-        Executes backpropagation for one batch, stepping the optimizer, if passed.
+        out = self.conv1(out.unsqueeze(1))
+        self._last_out_conv1 = out 
 
-        Args:
-            raw (torch.Tensor): batch to run (shape: B x 1 x W x H)
-            gt (torch.Tensor): ground-truth/target (shape: B x C x W x H)
-            loss_fn (Callable[[torch.Tensor, torch.Tensor], torch.Tensor]): loss function to use
-            opt (torch.Optimizer): optimizer to use (optional)
-
-        Returns:
-            torch.Tensor: the model's predcition
-            torch.Tensor: the loss from prediction vs. ground-truth
-        """
-        unf: Tensor = self.unflatten(raw).unsqueeze(1)
-
-        # compute conv1, with grads. we keep it saved
-        out_conv1: Tensor = self.conv1(unf)
-
-        # skip grads for rev-blocks
-        out = out_conv1
         with torch.no_grad():
             for layer in self.layers:
                 out = layer(out)
         out = out.requires_grad_()
+        self._last_out_revblocks = out
 
-        # get grads for conv2, save the prediction
-        pred: Tensor = self.conv2(out)
+        pred = self.conv2(out)
+        return pred.squeeze(1)
 
-        # back-propagate, only until right before conv2
-        loss = loss_fn(pred, gt.unsqueeze(1))
-        loss.backward()
+    def rev_pass_backward(self, loss: Tensor, scaler: Optional[torch.cuda.amp.GradScaler]):
+        if scaler is None:
+            loss.backward()
+        else:
+            scaler.scale(loss).backward()
 
-        # setting up reversal
-        out_curr = out
-        last_grad = out.grad
-        # we go through layers in reverse, saving only the gradients we need and
-        # thus saving up on memory
+        out_curr = self._last_out_revblocks
+        last_grad = out_curr.grad
+
         for layer in reversed(self.layers):
-            # we reverse, so we can forward again and get the grads
-            with torch.no_grad():
-                out_pre = layer.reverse(out_curr)
-            out_pre.requires_grad_()
+            if scaler is None:
+                with torch.no_grad():
+                    out_pre = layer.reverse(out_curr)
+                out_pre.requires_grad_()
 
-            # the values on this tensor are the same as out_curr, but they have gradients now
-            # TODO: maybe something more manual would be faster? we already have out_cur without
-            # gradients, maybe there's a quicker way to set them up
-            out_curr_with_grad: Tensor = layer(out_pre)
-            out_curr_with_grad.backward(gradient=last_grad)
+                out_curr_with_grad: Tensor = layer(out_pre)
+                out_curr_with_grad.backward(gradient=last_grad)
 
-            # set up next iteration
-            last_grad = out_pre.grad
-            out_curr = out_pre
+                last_grad = out_pre.grad
+                out_curr = out_pre
+            else:
+                with torch.autocast(device_type=self.device.type, dtype=torch.float16):
+                    with torch.no_grad():
+                        out_pre = layer.reverse(out_curr)
+                    out_pre.requires_grad_()
 
-        # then we do the back-prop for conv1
-        out_conv1.backward(gradient=last_grad)
+                    out_curr_with_grad: Tensor = layer(out_pre)
 
-        # step optimizer
-        if opt is not None:
-            opt.step()
-            opt.zero_grad()
+                scaler.scale(out_curr_with_grad).backward(gradient=last_grad)
 
-        return pred.squeeze(1), loss
+                last_grad = out_pre.grad
+                out_curr = out_pre
+
+        self._last_out_conv1.backward(gradient=last_grad)

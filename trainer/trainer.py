@@ -39,6 +39,9 @@ class TrainerCfg:
     # how many epochs to wait before evaluating all metrics
     metrics_report_interval: int = 5
 
+    # TODO: implement rev_mode on normal trainer
+    rev_mode: bool = False
+
 # TODO: allow training from checkpoint
 
 class Trainer:

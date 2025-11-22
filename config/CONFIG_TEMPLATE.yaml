@@ -28,6 +28,9 @@ train:
   # how many epochs to wait before testing all metrics
   metrics_report_interval: 5
 
+  # "reverse" training mode - for revsci only. slower but uses less memory
+  rev_mode: False
+
 model:
   model_name: "example" # model to use
   

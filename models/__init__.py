@@ -59,6 +59,9 @@ def setup_model(config: Dict[str, Any]) -> torch.nn.Module:
             model = torch.nn.Sequential(
                 demosaic, mstpp
                 )
+        case "revsci_rgb":
+            model = Rev3DCNN(n_blocks=config.get("n_blocks", 12), n_split=config.get("n_split", 2))
+            return model
 
         # to add a new model:
         case "example":
