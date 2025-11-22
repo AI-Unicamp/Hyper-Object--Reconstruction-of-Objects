@@ -196,37 +196,21 @@ class Rev3DCNN(nn.Module):
         pred = self.conv2(out)
         return pred.squeeze(1)
 
-    def rev_pass_backward(self, loss: Tensor, scaler: Optional[torch.cuda.amp.GradScaler]):
-        if scaler is None:
-            loss.backward()
-        else:
-            scaler.scale(loss).backward()
+    def rev_pass_backward(self, loss: Tensor):
+        loss.backward()
 
         out_curr = self._last_out_revblocks
         last_grad = out_curr.grad
 
         for layer in reversed(self.layers):
-            if scaler is None:
-                with torch.no_grad():
-                    out_pre = layer.reverse(out_curr)
-                out_pre.requires_grad_()
+            with torch.no_grad():
+                out_pre = layer.reverse(out_curr)
+            out_pre.requires_grad_()
 
-                out_curr_with_grad: Tensor = layer(out_pre)
-                out_curr_with_grad.backward(gradient=last_grad)
+            out_curr_with_grad: Tensor = layer(out_pre)
+            out_curr_with_grad.backward(gradient=last_grad)
 
-                last_grad = out_pre.grad
-                out_curr = out_pre
-            else:
-                with torch.autocast(device_type="cuda", dtype=torch.float16):
-                    with torch.no_grad():
-                        out_pre = layer.reverse(out_curr)
-                    out_pre.requires_grad_()
-
-                    out_curr_with_grad: Tensor = layer(out_pre)
-
-                scaler.scale(out_curr_with_grad).backward(gradient=last_grad)
-
-                last_grad = out_pre.grad
-                out_curr = out_pre
+            last_grad = out_pre.grad
+            out_curr = out_pre
 
         self._last_out_conv1.backward(gradient=last_grad)

@@ -130,45 +130,9 @@ class FastTrainer:
 
             self.optimizer.zero_grad(set_to_none=True)
 
-            if not self.cfg.rev_mode:
-                if self.scaler is None:
-                    # begin forward pass BEFORE fetching gt
+            if self.scaler is not None:
+                with torch.autocast(device_type=self.device.type, dtype=torch.float16):
                     pred = self.model(input_img)
-
-                    # get gt while GPU computes
-                    if first_iter:
-                        first_iter = False
-                    else:
-                        # we're not counting I/O for the input image but that's small anyway
-                        io_time_start = time.perf_counter()
-                        gt = next(it_out)[0].to(self.device, non_blocking=True)
-                        total_io_time += time.perf_counter() - io_time_start
-
-                    loss = self.loss_fn(pred, gt)
-                    loss.backward()
-                    self.optimizer.step()
-                else:
-                    with torch.autocast(device_type=self.device.type, dtype=torch.float16):
-                        pred = self.model(input_img)
-
-                        # we're not counting I/O for the input image but that's small anyway
-                        io_time_start = time.perf_counter()
-                        # get gt while GPU computes
-                        if first_iter:
-                           first_iter = False
-                        else:
-                           gt = next(it_out)[0].to(self.device, non_blocking=True)
-                        total_io_time += time.perf_counter() - io_time_start
-
-                        loss = self.loss_fn(pred, gt)
-                    self.scaler.scale(loss).backward()
-                    self.scaler.step(self.optimizer)
-                    self.scaler.update()
-            else:
-                self.model: Rev3DCNN # type annotation
-
-                if self.scaler is None:
-                    pred = self.model.rev_pass_forward(input_img)
 
                     # we're not counting I/O for the input image but that's small anyway
                     io_time_start = time.perf_counter()
@@ -180,25 +144,41 @@ class FastTrainer:
                     total_io_time += time.perf_counter() - io_time_start
 
                     loss = self.loss_fn(pred, gt)
-                    self.model.rev_pass_backward(loss, self.scaler)
-                    self.optimizer.step()
+                self.scaler.scale(loss).backward()
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+            elif not self.cfg.rev_mode:
+                # begin forward pass BEFORE fetching gt
+                pred = self.model(input_img)
+
+                # get gt while GPU computes
+                if first_iter:
+                    first_iter = False
                 else:
-                    with torch.autocast(device_type=self.device.type, dtype=torch.float16):
-                        pred = self.model.rev_pass_forward(input_img)
+                    # we're not counting I/O for the input image but that's small anyway
+                    io_time_start = time.perf_counter()
+                    gt = next(it_out)[0].to(self.device, non_blocking=True)
+                    total_io_time += time.perf_counter() - io_time_start
 
-                        # we're not counting I/O for the input image but that's small anyway
-                        io_time_start = time.perf_counter()
-                        # get gt while GPU computes
-                        if first_iter:
-                           first_iter = False
-                        else:
-                           gt = next(it_out)[0].to(self.device, non_blocking=True)
-                        total_io_time += time.perf_counter() - io_time_start
+                loss = self.loss_fn(pred, gt)
+                loss.backward()
+                self.optimizer.step()
+            else:
+                self.model: Rev3DCNN
+                pred = self.model.rev_pass_forward(input_img)
 
-                        loss = self.loss_fn(pred, gt)
-                    self.model.rev_pass_backward(loss, self.scaler)
-                    self.scaler.step(self.optimizer)
-                    self.scaler.update()
+                # we're not counting I/O for the input image but that's small anyway
+                io_time_start = time.perf_counter()
+                # get gt while GPU computes
+                if first_iter:
+                   first_iter = False
+                else:
+                   gt = next(it_out)[0].to(self.device, non_blocking=True)
+                total_io_time += time.perf_counter() - io_time_start
+
+                loss = self.loss_fn(pred, gt)
+                self.model.rev_pass_backward(loss)
+                self.optimizer.step()
 
             running += float(loss.item()) * input_img.size(0)
             n_samples += input_img.size(0)
