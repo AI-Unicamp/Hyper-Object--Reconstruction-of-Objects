@@ -181,6 +181,7 @@ class FastTrainer:
 
                     loss = self.loss_fn(pred, gt)
                     self.model.rev_pass_backward(loss, self.scaler)
+                    self.optimizer.step()
                 else:
                     with torch.autocast(device_type=self.device.type, dtype=torch.float16):
                         pred = self.model.rev_pass_forward(input_img)
@@ -196,6 +197,8 @@ class FastTrainer:
 
                         loss = self.loss_fn(pred, gt)
                     self.model.rev_pass_backward(loss, self.scaler)
+                    self.scaler.step(self.optimizer)
+                    self.scaler.update()
 
             running += float(loss.item()) * input_img.size(0)
             n_samples += input_img.size(0)

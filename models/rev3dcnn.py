@@ -217,7 +217,7 @@ class Rev3DCNN(nn.Module):
                 last_grad = out_pre.grad
                 out_curr = out_pre
             else:
-                with torch.autocast(device_type=self.device.type, dtype=torch.float16):
+                with torch.autocast(device_type="cuda", dtype=torch.float16):
                     with torch.no_grad():
                         out_pre = layer.reverse(out_curr)
                     out_pre.requires_grad_()

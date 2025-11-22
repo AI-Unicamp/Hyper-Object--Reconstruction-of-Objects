@@ -193,6 +193,7 @@ cfg = TrainerCfg(
         eta_min=train_config.get("eta_min", 1e-6),
         lambda_sam=train_config.get("lambda_sam", 0.1),     
         metrics_report_interval=train_config.get("metrics_report_interval", 5),
+        rev_mode=train_config.get("rev_mode", False)
     )
 
 loss_fn = ReconLoss(lambda_sam=cfg.lambda_sam)
