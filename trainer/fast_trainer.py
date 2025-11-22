@@ -157,7 +157,7 @@ class FastTrainer:
                         if first_iter:
                            first_iter = False
                         else:
-                           gt = next(it_out).to(self.device, non_blocking=True)
+                           gt = next(it_out)[0].to(self.device, non_blocking=True)
                         total_io_time += time.perf_counter() - io_time_start
 
                         loss = self.loss_fn(pred, gt)
@@ -176,7 +176,7 @@ class FastTrainer:
                     if first_iter:
                        first_iter = False
                     else:
-                       gt = next(it_out).to(self.device, non_blocking=True)
+                       gt = next(it_out)[0].to(self.device, non_blocking=True)
                     total_io_time += time.perf_counter() - io_time_start
 
                     loss = self.loss_fn(pred, gt)
@@ -191,7 +191,7 @@ class FastTrainer:
                         if first_iter:
                            first_iter = False
                         else:
-                           gt = next(it_out).to(self.device, non_blocking=True)
+                           gt = next(it_out)[0].to(self.device, non_blocking=True)
                         total_io_time += time.perf_counter() - io_time_start
 
                         loss = self.loss_fn(pred, gt)

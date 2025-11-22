@@ -11,7 +11,6 @@ from trainer.trainer import Trainer, TrainerCfg
 from utils.tools_wandb import ToolsWandb
 
 from datasets.partial import DeterministicTransforms
-from datasets.transform import random_crop, random_flip
 
 from models import setup_model
 
@@ -21,6 +20,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-t", "--track", type=int, required=True, help="track to run")
 parser.add_argument("-d", "--data_dir", type=str, default="./data", required=False, help="path to dataset directory")
 parser.add_argument("-c", "--config", type=str, required=False, help="path of config file to use (defaults to baselines for each track)")
+parser.add_argument("-i", "--data_in", type=str, required=False, help="dataset to use for input loader (e.g. rgb_2, mosaic, etc.)")
+parser.add_argument("-o", "--data_out", type=str, required=False, help="dataset to use for output loader (e.g. hsi_61, hsi_61_zarr, etc.)")
+parser.add_argument("-s", "--seed", type=str, required=False, help="seed for transform/shuffler RNG")
 
 # TODO: implement
 # parser.add_argument("--continue_from", type=str, required=False, help="checkpoint to start from")
@@ -58,8 +60,13 @@ else:
     print("WARNING: GPU not found, using CPU to train.")
     device = torch.device("cpu")
 
-transforms_in = DeterministicTransforms(track=args.track, is_out=False)
-transforms_out = DeterministicTransforms(track=args.track, is_out=True)
+if args.seed is not None:
+    rng_seed = args.seed
+else:
+    rng_seed = int(datetime.now().timestamp())
+
+transforms_in = DeterministicTransforms(track=args.track, is_out=False, base_seed=rng_seed)
+transforms_out = DeterministicTransforms(track=args.track, is_out=True, base_seed=rng_seed)
 if transforms_config.get("random_crop", False):
     transforms_in.add_transform("random_crop", ps=transforms_config.get("crop_size", 320))
     transforms_out.add_transform("random_crop", ps=transforms_config.get("crop_size", 320))
@@ -69,11 +76,22 @@ if transforms_config.get("random_flip", False):
 
 from datasets.partial import DeterministicTransforms, PartialDataset
 
+if args.data_in is not None:
+    img_type_in = args.data_in
+else:
+    img_type_in = "mosaic" if args.track==1 else "rgb_2"
+
+if args.data_out is not None:
+    img_type_out = args.data_out
+else:
+    img_type_out = "mosaic" if args.track==1 else "rgb_2"
+
+
 ds_train_in = PartialDataset(
     data_root=f"{args.data_dir}",
     track=args.track,  # 1 for mosaic, 2 for rgb_2
     dataset_type="train",
-    img_type="mosaic" if args.track==1 else "rgb_2",
+    img_type=img_type_in,
     transforms=transforms_in
 )
 
@@ -81,7 +99,7 @@ ds_train_out = PartialDataset(
     data_root=f"{args.data_dir}",
     track=args.track,  # 1 for mosaic, 2 for rgb_2
     dataset_type="train",
-    img_type="hsi_61_zarr",
+    img_type=img_type_out,
     transforms=transforms_out
 )
 
@@ -89,14 +107,14 @@ ds_val_in = PartialDataset(
     data_root=f"{args.data_dir}",
     track=args.track,  # 1 for mosaic, 2 for rgb_2
     dataset_type="test-public",
-    img_type="mosaic" if args.track==1 else "rgb_2",
+    img_type=img_type_in,
 )
 
 ds_val_out = PartialDataset(
     data_root=f"{args.data_dir}",
     track=args.track,  # 1 for mosaic, 2 for rgb_2
     dataset_type="test-public",
-    img_type="hsi_61",
+    img_type=img_type_out,
 )
 
 from torch.utils.data import Sampler
@@ -121,7 +139,7 @@ class SharedShuffledSampler(Sampler[int]):
     def __len__(self):
         return len(self._indices)
 
-shared_sampler = SharedShuffledSampler(len(ds_train_in))
+shared_sampler = SharedShuffledSampler(len(ds_train_in), base_seed=rng_seed)
 
 train_loader_in = DataLoader(
         ds_train_in,
