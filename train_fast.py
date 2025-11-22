@@ -99,11 +99,36 @@ ds_val_out = PartialDataset(
     img_type="hsi_61",
 )
 
+from torch.utils.data import Sampler
+class SharedShuffledSampler(Sampler[int]):
+    def __init__(self, data_len: int, base_seed: int = 0):
+        self.base_seed = int(base_seed)
+        self.epoch = 0
+        self._indices = torch.arange(data_len)
+
+    def set_epoch(self, epoch: int):
+        """Reshuffle indices deterministically for this epoch."""
+        self.epoch = int(epoch)
+        g = torch.Generator()
+        g.manual_seed(self.base_seed + self.epoch)
+        perm = torch.randperm(len(self._indices), generator=g)
+        self._indices = self._indices[perm]
+
+    def __iter__(self):
+        # DataLoader in the main process will call this each epoch
+        return iter(self._indices.tolist())
+
+    def __len__(self):
+        return len(self._indices)
+
+shared_sampler = SharedShuffledSampler(len(ds_train_in))
+
 train_loader_in = DataLoader(
         ds_train_in,
         batch_size=train_config.get("batch_size_train", 4),
         num_workers=train_config["fast"].get("num_workers_train_in", 4),
-        shuffle=True,
+        shuffle=False,
+        sampler=shared_sampler,
         pin_memory=True,
         persistent_workers=True
     )
@@ -112,7 +137,8 @@ train_loader_out = DataLoader(
         ds_train_out,
         batch_size=train_config.get("batch_size_train", 4),
         num_workers=train_config["fast"].get("num_workers_train_out", 4),
-        shuffle=True,
+        shuffle=False,
+        sampler=shared_sampler,
         pin_memory=True,
         persistent_workers=True
     )

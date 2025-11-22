@@ -46,6 +46,19 @@ def setup_model(config: Dict[str, Any]) -> torch.nn.Module:
             model = torch.nn.Sequential(
                 demosaic, mstpp
                 )
+        case "revsci_mstpp_up":
+            demosaic = Rev3DCNN(n_blocks=config.get("n_blocks", 12), n_split=config.get("n_split", 2))
+
+            mstpp = MST_Plus_Plus_LateUpsample(in_channels=config.get("in_channels", 3),
+                                               out_channels=config.get("out_channels", 61),
+                                               n_feat=config.get("n_feat", 61),
+                                               stage=config.get("stage", 3),
+                                               upscale_factor=config.get("upscale_factor", 1))
+            mstpp.return_hr = True
+
+            model = torch.nn.Sequential(
+                demosaic, mstpp
+                )
 
         # to add a new model:
         case "example":
