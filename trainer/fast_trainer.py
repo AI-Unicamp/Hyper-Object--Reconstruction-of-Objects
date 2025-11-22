@@ -386,7 +386,8 @@ class FastTrainer:
         for ep in range(1, self.cfg.epochs + 1):
             train_loss = self.train_epoch(ep)
 
-            validate_metrics: bool = (ep % self.cfg.metrics_report_interval == 0)
+            validate_metrics: bool = (ep % self.cfg.metrics_report_interval) == 0 if \
+                                     self.cfg.metrics_report_interval > 0 else False
             val_stats = self.validate(ep, validate_metrics=validate_metrics)
 
             self._print_epoch(ep, train_loss, val_stats, report_metrics=validate_metrics)
