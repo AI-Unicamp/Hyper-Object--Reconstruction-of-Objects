@@ -118,15 +118,16 @@ class FastTrainer:
 
         self.train_loader_in.dataset.transforms.set_epoch(epoch)
         self.train_loader_out.dataset.transforms.set_epoch(epoch)
+        self.train_loader_in.sampler.set_epoch(epoch) # same instance for in/out
 
         total_io_time = 0.0
         total_time_start = time.perf_counter()
 
         it_out = iter(self.train_loader_out)
-        gt = next(it_out).to(self.device, non_blocking=True)
+        gt = next(it_out)[0].to(self.device, non_blocking=True)
         first_iter = True
 
-        for input_img in self.train_loader_in:
+        for input_img, _ in self.train_loader_in:
             input_img = input_img.to(self.device, non_blocking=True)
 
             self.optimizer.zero_grad(set_to_none=True)
@@ -140,7 +141,7 @@ class FastTrainer:
                 else:
                     # we're not counting I/O for the input image but that's small anyway
                     io_time_start = time.perf_counter()
-                    gt = next(it_out).to(self.device, non_blocking=True)
+                    gt = next(it_out)[0].to(self.device, non_blocking=True)
                     total_io_time += time.perf_counter() - io_time_start
 
                 loss = self.loss_fn(pred, gt)
@@ -221,10 +222,10 @@ class FastTrainer:
         total_time_start = time.perf_counter()
 
         out_it = iter(self.val_loader_out)
-        gt_cube = next(out_it).to(self.device, non_blocking=True)
+        gt_cube = next(out_it)[0].to(self.device, non_blocking=True)
         first_iter = True
 
-        for input_img in self.val_loader_in:
+        for input_img, _ in self.val_loader_in:
             input_img = input_img.to(self.device, non_blocking=True)
 
             # forward (no grad)
@@ -234,7 +235,7 @@ class FastTrainer:
                     first_iter = False
                 else:
                     io_time_start = time.perf_counter()
-                    gt_cube = next(out_it).to(self.device, non_blocking=True)
+                    gt_cube = next(out_it)[0].to(self.device, non_blocking=True)
                     total_io_time += time.perf_counter() - io_time_start
                 loss = self.loss_fn(pred_cube, gt_cube)
 

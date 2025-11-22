@@ -69,6 +69,9 @@ class DeterministicTransforms:
 
         return img
 
+def read_rgb_np(path):
+    return np.load(path).astype(np.float32)
+
 class PartialDataset(Dataset):
     def __init__(
         self,
@@ -83,7 +86,7 @@ class PartialDataset(Dataset):
         self.img_type = img_type
 
         path = f"{data_root}/track{track}/{dataset_type}/{img_type}"
-        self.paths = [Path(f"{path}/{f}") for f in os.listdir(path)]
+        self.paths = sorted([Path(f"{path}/{f}") for f in os.listdir(path)])
 
         self.zarr_cache: list[zarr.Array | zarr.Group | None] = [None] * len(self.paths)
 
@@ -113,10 +116,12 @@ class PartialDataset(Dataset):
             case "rgb_2":
                 rgb_2 = read_rgb_image(path)                             # (H,W,3) float32 [0,1]
                 out = torch.from_numpy(np.transpose(rgb_2, (2, 0, 1)))  # C,H,W
-            case "rgb":
-                rgb = read_rgb_image(path)                             # (H,W,3) float32 [0,1]
+            case "rgb_full":
+                rgb = read_rgb_np(path)                             # (H,W,3) float32 [0,1]
                 out = torch.from_numpy(np.transpose(rgb, (2, 0, 1)))  # C,H,W
 
         if self.transforms is not None:
             out = self.transforms.apply(out, idx)
-        return out
+
+        img_id = os.path.splitext(os.path.split(path)[1])[0]
+        return out, img_id
