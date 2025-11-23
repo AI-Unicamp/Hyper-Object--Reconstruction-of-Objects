@@ -84,7 +84,7 @@ else:
 if args.data_out is not None:
     img_type_out = args.data_out
 else:
-    img_type_out = "mosaic" if args.track==1 else "rgb_2"
+    img_type_out = "hsi_61_zarr"
 
 
 ds_train_in = PartialDataset(
