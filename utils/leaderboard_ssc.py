@@ -40,6 +40,30 @@ def sid_metric(pred: torch.Tensor, gt: torch.Tensor, eps = 1e-12):
 
     return torch.mean(D_pq + D_qp)
 
+def evaluate_reconstruction(pred: torch.Tensor,
+                            gt: torch.Tensor) -> Dict[str, float]:
+    """Used to evaluate RGB and other reconstructions by TRevSCI.
+    Expects unbatched inputs, like evaluate_pair_ssc."""
+    
+    with torch.no_grad():
+        sam_mean = sam_metric(pred.unsqueeze(0), gt.unsqueeze(0)).clamp(-1.0, 1.0).rad2deg().item()
+        sid_mean = sid_metric(pred, gt).item()
+        erg_val  = ergas_metric(pred.unsqueeze(0), gt.unsqueeze(0), ratio=1.0).item()
+        psnr_val = psnr_metric(pred, gt, data_range=1.0).item()
+        ssim_val = ssim_metric(pred.unsqueeze(0), gt.unsqueeze(0), data_range=1.0, reduction="elementwise_mean").item()
+
+    dE_mean = float("nan")
+    if pred.shape[0] == 3: # RGB reconstruction
+        gt_np = gt.permute(1, 2, 0).cpu().numpy()
+        pr_np = pred.permute(1, 2, 0).cpu().numpy()
+        dE_mean  = _deltaE00_mean(gt_np, pr_np)
+
+    return dict(
+        SAM_deg=float(sam_mean), SID=float(sid_mean), ERGAS=float(erg_val),
+        PSNR_dB=float(psnr_val), SSIM=float(ssim_val), DeltaE00=float(dE_mean),
+        )
+
+
 # TODO (IMPORTANT): implement masking for all metrics
 def evaluate_pair_ssc(
     gt_cube: torch.Tensor,       # HxWxC or CxHxW reflectance [0,1]
