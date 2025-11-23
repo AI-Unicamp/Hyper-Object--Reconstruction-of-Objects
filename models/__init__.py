@@ -2,6 +2,7 @@ from baselines.raw2hsi import Raw2HSI
 from baselines.mstpp_up import MST_Plus_Plus_LateUpsample
 
 from .rev3dcnn import Rev3DCNN
+from .rev2dcnn import Rev2DCNN
 # to add a model that is in this folder:
 # from .file import ModelName
 from .example import Example
@@ -61,6 +62,10 @@ def setup_model(config: Dict[str, Any]) -> torch.nn.Module:
                 )
         case "revsci_rgb":
             model = Rev3DCNN(n_blocks=config.get("n_blocks", 12), n_split=config.get("n_split", 2))
+            return model
+
+        case "revsci2_rgb":
+            model = Rev2DCNN(n_blocks=config.get("n_blocks", 12), n_split=config.get("n_split", 2))
             return model
 
         # to add a new model:
