@@ -4,8 +4,15 @@ train:
   batch_size_test: 4  
   num_workers_test: 3 
 
+  fast:
+    num_workers_train_in: 2 
+    num_workers_train_out: 2 
+
+    num_workers_test_in: 2  
+    num_workers_test_out: 2  
+
   epochs: 1000 
-  amp: False # True
+  amp: True
 
   optim: "adamw"
   lr: 0.0004
@@ -21,6 +28,8 @@ train:
 model:
   model_name: "revsci_mstpp"
 
+  pretrained_revsci_path: "runs/track1/revsci_rgb_2025-11-22_21-01-56/model_best.tar"
+
   # revsci params
   n_blocks: 12
   n_split: 2
@@ -30,9 +39,9 @@ model:
   out_channels: 61
   n_feat: 61 
   stage: 3 
-  upscale_factor: 2
+  upscale_factor: 1
 
 transforms:
   random_crop: True
-  crop_size: 256
+  crop_size: 512
   random_flip: False # might not work with revsci - makes mosaic not match expectation
