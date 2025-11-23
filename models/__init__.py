@@ -65,6 +65,16 @@ def setup_model(config: Dict[str, Any]) -> torch.nn.Module:
             model = Rev3DCNN(n_blocks=config.get("n_blocks", 12), n_split=config.get("n_split", 2))
             return model
 
+        case "revsci_rgb_up":
+            to_mosaic = Mosaic()
+            revsci = Rev3DCNN(n_blocks=config.get("n_blocks", 12), n_split=config.get("n_split", 2))
+
+            model = torch.nn.Sequential(
+                    to_mosaic, revsci
+                    )
+            
+            return model
+
         case "revsci2_rgb":
             model = Rev2DCNN(n_blocks=config.get("n_blocks", 12), n_split=config.get("n_split", 2))
             return model
