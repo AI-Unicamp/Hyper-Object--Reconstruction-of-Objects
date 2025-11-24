@@ -176,11 +176,11 @@ val_loader_out  = DataLoader(
         persistent_workers=True,
     )
 
-
-
 config_name = os.path.splitext(os.path.basename(config_path))[0]
 run_name = f"{config_name}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
 out_dir = f"runs/track{args.track}/{run_name}"
+
+os.makedirs(out_dir)
 
 # save the config that was used
 copy2(config_path, f"{out_dir}/config.yaml")
