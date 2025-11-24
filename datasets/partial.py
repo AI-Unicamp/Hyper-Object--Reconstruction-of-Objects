@@ -1,6 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Literal, Optional
 
 from torch.utils.data import Dataset
 import zarr
@@ -9,65 +9,19 @@ import torch
 import os
 
 from .io import read_rgb_image, read_h5_cube, read_mosaic
+from .det_transform import DeterministicTransforms
 
-# deterministic transforms - allows transforms to remain consistent in input/output even
-# in separate dataloaders
-class DeterministicTransforms:
-    def __init__(self, track: Literal[1, 2], is_out: bool, base_seed: int = 0):
-        self.base_seed = int(base_seed)
-        self.track = track
-        self.is_out = is_out
-        self.transforms: dict[str, dict[str, Any]] = {}
+# R G
+# G B
+_bayer = torch.tensor([
+    [[1, 0],
+     [0, 0]],
+    [[0, 1],
+     [1, 0]],
+    [[0, 0],
+     [0, 1]]
+]).float()
 
-    def add_transform(self, transform_name: str, **kwargs):
-        self.transforms[transform_name] = kwargs
-
-    def set_epoch(self, epoch: int):
-        self.epoch = int(epoch)
-
-    def _rng_for(self, idx: int):
-        # combine base_seed, epoch, and idx into a 32-bit seed
-        # using a simple mixing (avoid collisions)
-        h = (self.base_seed * 1000003) ^ (self.epoch * 9176) ^ idx
-        seed = h & 0xFFFFFFFF
-        return np.random.default_rng(seed)  # or random.Random(seed)
-
-    def _random_crop_det(self, img: torch.Tensor, rng, ps=256):
-        H, W = img.shape[-2], img.shape[-1]
-        if self.track==2 and self.is_out:
-            # make sure the RNG call is exactly the same as for the input
-            r = int(rng.integers(0, H//2 - ps))
-            c = int(rng.integers(0, W//2 - ps))
-        else:
-            r = int(rng.integers(0, H - ps))
-            c = int(rng.integers(0, W - ps))
-
-        if self.track == 1:
-            # ensure coordinates are even; i.e. crop aligns with bayer pattern
-            r -= r % 2
-            c -= c % 2
-        if self.track == 2 and self.is_out:
-            # output is twice the size of the input
-            img = img[:, 2*r:2*r+2*ps, 2*c:2*c+2*ps]
-        else:
-            img = img[:, r:r+ps, c:c+ps]
-
-        return img
-
-    def _random_flip_det(self, img: torch.Tensor, rng):
-        if rng.random() < 0.5:
-            img = img.flip(dims=[2])
-        return img
-
-    def apply(self, img, idx: int):
-        rng = self._rng_for(idx)
-
-        if "random_crop" in self.transforms:
-            img = self._random_crop_det(img, rng, **self.transforms["random_crop"])
-        if "random_flip" in self.transforms:
-            img = self._random_flip_det(img, rng, **self.transforms["random_flip"])
-
-        return img
 
 def read_rgb_np(path):
     return np.load(path).astype(np.float32)

@@ -10,7 +10,8 @@ from trainer.losses import ReconLoss
 from trainer.trainer import Trainer, TrainerCfg
 from utils.tools_wandb import ToolsWandb
 
-from datasets.partial import DeterministicTransforms
+from datasets.partial import PartialDataset
+from datasets.det_transform import DeterministicTransforms
 
 from models import setup_model
 
