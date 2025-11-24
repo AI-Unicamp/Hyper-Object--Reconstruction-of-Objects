@@ -31,7 +31,7 @@ class PartialDataset(Dataset):
         self,
         data_root: str,
         track: Literal[1, 2],
-        dataset_type: Literal["train", "test-public"],
+        dataset_type: Literal["train", "test-public", "test-private"],
         img_type: Literal["hsi_61", "hsi_61_zarr", "mosaic", "rgb_2", "rgb_full"],
         transforms: Optional[DeterministicTransforms] = None,
         old_mode: bool = False # whether to use old input mode for mosaic
