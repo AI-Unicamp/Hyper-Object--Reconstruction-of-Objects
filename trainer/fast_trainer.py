@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader
 from .losses import ReconLoss
 from models.rev3dcnn import Rev3DCNN
 
-from utils.leaderboard_ssc import evaluate_pair_ssc
+from utils.leaderboard_ssc import evaluate_pair_ssc, evaluate_reconstruction
 
 from .trainer import TrainerCfg
 
@@ -39,7 +39,7 @@ class FastTrainer:
         val_loader_in: DataLoader,
         val_loader_out: DataLoader,
         loss_fn: Optional[torch.nn.Module] = None,
-        device: Optional[torch.device] = torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+        device: torch.device = torch.device("cuda" if torch.cuda.is_available() else "cpu"),
         cfg: TrainerCfg = TrainerCfg(),
         wandb_run: Optional[wandb.Run] = None
     ):
@@ -264,7 +264,11 @@ class FastTrainer:
             if validate_metrics:
                 for i in range(pred_cube.size(0)):
                     # --- spectral metrics (means over mask) ---
-                    scores = evaluate_pair_ssc(gt_cube[i].detach(), pred_cube[i].detach())
+                    if "rgb" not in self.train_loader_out.dataset.img_type:
+                        scores = evaluate_pair_ssc(gt_cube[i].detach(), pred_cube[i].detach())
+                    else:
+                        # reconstructing RGB images, less metrics
+                        scores = evaluate_reconstruction(pred_cube[i].detach(), pred_cube[i].detach())
 
                     for k in metric_keys:
                         lists_dict[k].append(scores[k])
@@ -321,35 +325,46 @@ class FastTrainer:
         ]
 
         if report_metrics:
-            parts += [
-                # --- Core Reconstruction Metrics ---
-                f"\n[{epoch:03d}] RAW METRICS    |",
-                f"SAM(deg): {val_stats.get('SAM_deg', float('nan')):6.2f}",
-                f"SID: {val_stats.get('SID', float('nan')):7.4f}",
-                f"ERGAS: {val_stats.get('ERGAS', float('nan')):6.3f}",
-                f"PSNR(dB): {val_stats.get('PSNR_dB', float('nan')):6.2f}",
-                f"SSIM: {val_stats.get('SSIM', float('nan')):5.3f}",
-                f"DE00: {val_stats.get('DeltaE00', float('nan')):5.3f}",
+            if "rgb" not in self.train_loader_out.dataset.img_type:
+                parts += [
+                    # --- Core Reconstruction Metrics ---
+                    f"\n[{epoch:03d}] RAW METRICS    |",
+                    f"SAM(deg): {val_stats.get('SAM_deg', float('nan')):6.2f}",
+                    f"SID: {val_stats.get('SID', float('nan')):7.4f}",
+                    f"ERGAS: {val_stats.get('ERGAS', float('nan')):6.3f}",
+                    f"PSNR(dB): {val_stats.get('PSNR_dB', float('nan')):6.2f}",
+                    f"SSIM: {val_stats.get('SSIM', float('nan')):5.3f}",
+                    f"DE00: {val_stats.get('DeltaE00', float('nan')):5.3f}",
 
-                f"\n[{epoch:03d}] SPECTRAL SCORE |",
-                f"S_SPEC:  {val_stats.get('S_SPEC', float('nan')):5.5f} |",
-                f"S_SAM: {val_stats.get('S_SAM', float('nan')):5.5f}",
-                f"S_SID: {val_stats.get('S_SID', float('nan')):5.5f}",
-                f"S_ERGAS: {val_stats.get('S_ERGAS', float('nan')):5.5f}",
+                    f"\n[{epoch:03d}] SPECTRAL SCORE |",
+                    f"S_SPEC:  {val_stats.get('S_SPEC', float('nan')):5.5f} |",
+                    f"S_SAM: {val_stats.get('S_SAM', float('nan')):5.5f}",
+                    f"S_SID: {val_stats.get('S_SID', float('nan')):5.5f}",
+                    f"S_ERGAS: {val_stats.get('S_ERGAS', float('nan')):5.5f}",
 
-                f"\n[{epoch:03d}] SPATIAL SCORE  |",
-                f"S_SPAT:  {val_stats.get('S_SPAT', float('nan')):5.5f} |",
-                f"S_PSNR: {val_stats.get('S_PSNR', float('nan')):5.5f}",
-                f"S_SSIM: {val_stats.get('SSIM', float('nan')):5.5f}",
+                    f"\n[{epoch:03d}] SPATIAL SCORE  |",
+                    f"S_SPAT:  {val_stats.get('S_SPAT', float('nan')):5.5f} |",
+                    f"S_PSNR: {val_stats.get('S_PSNR', float('nan')):5.5f}",
+                    f"S_SSIM: {val_stats.get('SSIM', float('nan')):5.5f}",
 
-                f"\n[{epoch:03d}] COLOR SCORE    |",
-                f"S_COLOR: {val_stats.get('S_COLOR', float('nan')):5.5f}",
+                    f"\n[{epoch:03d}] COLOR SCORE    |",
+                    f"S_COLOR: {val_stats.get('S_COLOR', float('nan')):5.5f}",
 
-                # --- Final Score ---
-                f"\n[{epoch:03d}] FINAL SCORE    |",
-                f"SSC_arith: {val_stats.get('SSC_arith', float('nan')):5.5f}",
-                f"SSC_geom: {val_stats.get('SSC_geom', float('nan')):5.5f}",
-            ]
+                    # --- Final Score ---
+                    f"\n[{epoch:03d}] FINAL SCORE    |",
+                    f"SSC_arith: {val_stats.get('SSC_arith', float('nan')):5.5f}",
+                    f"SSC_geom: {val_stats.get('SSC_geom', float('nan')):5.5f}",
+                ]
+            else:
+                parts += [
+                        f"\nMETRICS:",
+                        f"\n   SAM(deg): {val_stats.get('SAM_deg', float('nan')):6.3f}",
+                        f"\n   SID:      {val_stats.get('SID', float('nan')):6.4f}",
+                        f"\n   ERGAS:    {val_stats.get('ERGAS', float('nan')):6.3f}",
+                        f"\n   PSNR(dB): {val_stats.get('PSNR_dB', float('nan')):6.2f}",
+                        f"\n   SSIM:     {val_stats.get('SSIM', float('nan')):6.6f}",
+                        f"\n   DE00:     {val_stats.get('DeltaE00', float('nan')):6.3f}",
+                    ]
         print("  ".join(parts))
 
     def _save_checkpoint(self, epoch: int, is_best: bool):
