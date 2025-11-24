@@ -1,16 +1,16 @@
 train:
-  batch_size_train: 4  # batch size. higher users more VRAM
-  num_workers_train: 4 # num. of processes for loading data. higher uses more RAM
-  batch_size_test: 4   # batch size. higher users more VRAM
-  num_workers_test: 3  # num. of processes for loading data. higher uses more RAM
+  batch_size_train: 1  # batch size. higher users more VRAM
+  batch_size_test: 1   # batch size. higher users more VRAM
 
+  num_workers_train: 4 # num. of processes for loading data. IGNORED by train_fast.py
+  num_workers_test: 3  # num. of processes for loading data. ignored by train_fast.py
   fast:
-    # options for fast trainer; separate loader for inputs and outputs
-    num_workers_train_in: 1 
-    num_workers_train_out: 6 
+    # options for train_fast.py - each input/output stream has its own loader and num_workers
+    num_workers_train_in: 2 
+    num_workers_train_out: 2 
 
-    num_workers_test_in: 1  
-    num_workers_test_out: 6  
+    num_workers_test_in: 2  
+    num_workers_test_out: 2  
 
   epochs: 1000 
   amp: True # whether to use autoscaling

@@ -1,15 +1,15 @@
 train:
   batch_size_train: 2
-  num_workers_train: 0
   batch_size_test: 2  
-  num_workers_test: 0 
 
+  num_workers_train: 0
+  num_workers_test: 0 
   fast:
-     num_workers_train_in: 2
-     num_workers_train_out: 2
+    num_workers_train_in: 2
+    num_workers_train_out: 2
      
-     num_workers_test_in: 2
-     num_workers_test_out: 2
+    num_workers_test_in: 2
+    num_workers_test_out: 2
 
   epochs: 1000 
   amp: True
@@ -23,7 +23,7 @@ train:
 
   lambda_sam: 0.1
 
-  metrics_report_interval: 0
+  metrics_report_interval: 5
 
 model:
   model_name: "revsci_rgb_up"
@@ -31,6 +31,7 @@ model:
   # revsci params
   n_blocks: 12
   n_split: 2
+  old_mode: False # some pre-trained models will require this to be True
   
 transforms:
   random_crop: False
