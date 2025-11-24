@@ -2,8 +2,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class Mosaic(nn.Module):
+class MosaicUp(nn.Module):
     def __init__(self):
+        """FOR ICASSP CHALLENGE:
+            'Upscales' RGB input by a factor of two while turning it into a mosaic.
+             TODO: Better way to do this?
+        """
         super().__init__()
 
     def forward(self, img: torch.Tensor):
