@@ -1,3 +1,4 @@
+import os
 import torch
 import numpy as np
 import yaml
@@ -18,24 +19,18 @@ parser.add_argument("-t", "--track", type=int, required=True, help="track to run
 parser.add_argument("-d", "--data_dir", type=str, default="./data", required=False, help="path to dataset directory")
 parser.add_argument("-c", "--config", type=str, required=False, help="path of config file to use (defaults to baselines for each track)")
 parser.add_argument("-i", "--data_in", type=str, required=False, help="dataset to use for input loader (e.g. rgb_2, mosaic, etc.)")
-parser.add_argument("-o", "--data_out", type=str, required=False, help="dataset to use for output loader (e.g. hsi_61, hsi_61_zarr, etc.)")
+parser.add_argument("-o", "--data_out", type=str, default="hsi_61_zarr", required=False, help="dataset to use for output loader (e.g. hsi_61, hsi_61_zarr, etc.)")
 
 parser.add_argument("--model", type=str, required=True, help="path to model to submit")
-
-# TODO: implement
-# parser.add_argument("-o", "--out_dir", type=str, default="blahblah", required=False, help="path to save generated files")
 
 args = parser.parse_args()
 
 model_path = args.model
 
 if args.config is None:
-    if args.track == 1:
-        config_path = "config/raw2hsi_baseline.yaml"
-    elif args.track == 2:
-        config_path = "config/mst_plus_plus_up_baseline.yaml"
-    else:
-        raise ValueError(f"'{args.track}' is invalid value for track: must be 1 or 2.")
+    # if no config given, assume that it is in the same folder as the model
+    config_path = f"{os.path.dirname(model_path)}/config.yaml"
+    print(f"No config given, assuming config is at {config_path}")
 else:
     config_path = args.config
 
@@ -59,13 +54,12 @@ else:
 
 if args.data_in is not None:
     img_type_in = args.data_in
-else:
+elif args.track is not None:
     img_type_in = "mosaic" if args.track==1 else "rgb_2"
-
-if args.data_out is not None:
-    img_type_out = args.data_out
 else:
-    img_type_out = "hsi_61_zarr"
+    raise ValueError("Must use at least one of the flags '--track' or '--data_in'.")
+
+img_type_out = args.data_out
 
 ds_val_in = PartialDataset(
     data_root=f"{args.data_dir}",
@@ -125,7 +119,7 @@ for k in metric_keys:
     lists_dict[k] = []
 
 it_out = iter(val_loader_out)
-for input_img in tqdm(val_loader_in, desc="Evaluating test data..."):
+for input_img, _ in tqdm(val_loader_in, desc="Evaluating test data..."):
     input_img: torch.Tensor
     input_img = input_img.to(device, non_blocking=True)
 
@@ -133,7 +127,7 @@ for input_img in tqdm(val_loader_in, desc="Evaluating test data..."):
     with torch.no_grad():
         pred_cube = model(input_img).clamp(0, 1)
 
-    output_cube: torch.Tensor = next(it_out) 
+    output_cube: torch.Tensor = next(it_out)[0].to(device, non_blocking=True) 
 
     # per-sample metrics
     for i in range(pred_cube.size(0)):
@@ -188,12 +182,12 @@ if "rgb" not in img_type_out:
 else:
     parts = [
             f"\nMETRICS:",
-            f"\nSAM(deg): {val_stats.get('SAM_deg', float('nan')):6.2f}",
-            f"\nSID:      {val_stats.get('SID', float('nan')):7.4f}",
-            f"\nERGAS:    {val_stats.get('ERGAS', float('nan')):6.3f}",
-            f"\nPSNR(dB): {val_stats.get('PSNR_dB', float('nan')):6.2f}",
-            f"\nSSIM:     {val_stats.get('SSIM', float('nan')):5.3f}",
-            f"\nDE00:     {val_stats.get('DeltaE00', float('nan')):5.3f}",
+            f"\n   SAM(deg): {val_stats.get('SAM_deg', float('nan')):6.3f}",
+            f"\n   SID:      {val_stats.get('SID', float('nan')):6.4f}",
+            f"\n   ERGAS:    {val_stats.get('ERGAS', float('nan')):6.3f}",
+            f"\n   PSNR(dB): {val_stats.get('PSNR_dB', float('nan')):6.2f}",
+            f"\n   SSIM:     {val_stats.get('SSIM', float('nan')):6.6f}",
+            f"\n   DE00:     {val_stats.get('DeltaE00', float('nan')):6.3f}",
         ]
 
 print("  ".join(parts))

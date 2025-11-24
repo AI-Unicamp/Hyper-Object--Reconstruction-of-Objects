@@ -1,13 +1,13 @@
 import torch
-import wandb
 import yaml
 import os
 import argparse
 from datetime import datetime
+from shutil import copy2
 
 from torch.utils.data import DataLoader
 from trainer.losses import ReconLoss
-from trainer.trainer import Trainer, TrainerCfg
+from trainer.trainer import TrainerCfg
 from utils.tools_wandb import ToolsWandb
 
 from datasets.partial import PartialDataset
@@ -18,11 +18,11 @@ from models import setup_model
 from typing import Dict, Any
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-t", "--track", type=int, required=True, help="track to run")
+parser.add_argument("-t", "--track", type=int, required=False, help="track to run")
 parser.add_argument("-d", "--data_dir", type=str, default="./data", required=False, help="path to dataset directory")
 parser.add_argument("-c", "--config", type=str, required=False, help="path of config file to use (defaults to baselines for each track)")
 parser.add_argument("-i", "--data_in", type=str, required=False, help="dataset to use for input loader (e.g. rgb_2, mosaic, etc.)")
-parser.add_argument("-o", "--data_out", type=str, required=False, help="dataset to use for output loader (e.g. hsi_61, hsi_61_zarr, etc.)")
+parser.add_argument("-o", "--data_out", type=str, default="hsi_61_zarr", required=False, help="dataset to use for output loader (e.g. hsi_61, hsi_61_zarr, etc.)")
 parser.add_argument("-s", "--seed", type=str, required=False, help="seed for transform/shuffler RNG")
 
 # TODO: implement
@@ -75,18 +75,14 @@ if transforms_config.get("random_flip", False):
     transforms_in.add_transform("random_flip")
     transforms_out.add_transform("random_flip")
 
-from datasets.partial import DeterministicTransforms, PartialDataset
-
 if args.data_in is not None:
     img_type_in = args.data_in
-else:
+elif args.track is not None:
     img_type_in = "mosaic" if args.track==1 else "rgb_2"
-
-if args.data_out is not None:
-    img_type_out = args.data_out
 else:
-    img_type_out = "hsi_61_zarr"
+    raise ValueError("Must use at least one of the flags '--track' or '--data_in'.")
 
+img_type_out = args.data_out
 
 ds_train_in = PartialDataset(
     data_root=f"{args.data_dir}",
@@ -180,9 +176,15 @@ val_loader_out  = DataLoader(
         persistent_workers=True,
     )
 
+
+
 config_name = os.path.splitext(os.path.basename(config_path))[0]
 run_name = f"{config_name}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
 out_dir = f"runs/track{args.track}/{run_name}"
+
+# save the config that was used
+copy2(config_path, f"{out_dir}/config.yaml")
+
 cfg = TrainerCfg(
         out_dir=out_dir,
         epochs=train_config.get("epochs", 1000),
