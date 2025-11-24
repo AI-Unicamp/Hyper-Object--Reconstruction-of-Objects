@@ -66,14 +66,27 @@ if args.seed is not None:
 else:
     rng_seed = int(datetime.now().timestamp())
 
-transforms_in = DeterministicTransforms(track=args.track, is_out=False, base_seed=rng_seed)
-transforms_out = DeterministicTransforms(track=args.track, is_out=True, base_seed=rng_seed)
+transforms_in = DeterministicTransforms(track=args.track,
+                                        is_out=False,
+                                        base_seed=rng_seed,
+                                        old_mode=model_config.get("old_mode", False))
+transforms_out = DeterministicTransforms(track=args.track,
+                                         is_out=True,
+                                         base_seed=rng_seed,
+                                         old_mode=model_config.get("old_mode", False))
 if transforms_config.get("random_crop", False):
     transforms_in.add_transform("random_crop", ps=transforms_config.get("crop_size", 320))
     transforms_out.add_transform("random_crop", ps=transforms_config.get("crop_size", 320))
 if transforms_config.get("random_flip", False):
     transforms_in.add_transform("random_flip")
     transforms_out.add_transform("random_flip")
+if transforms_config.get("random_rot90", False):
+    transforms_in.add_transform("random_rot90")
+    transforms_out.add_transform("random_rot90")
+if transforms_config.get("rgb_gaussian_noise", False):
+    transforms_in.add_transform("rgb_gaussian_noise", sigma=transforms_config.get("rgb_noise_sigma", 0.01))
+if transforms_config.get("spectral_jitter", False):
+    transforms_out.add_transform("spectral_jitter", sigma=transforms_config.get("spectral_jitter_sigma", 0.02))
 
 if args.data_in is not None:
     img_type_in = args.data_in

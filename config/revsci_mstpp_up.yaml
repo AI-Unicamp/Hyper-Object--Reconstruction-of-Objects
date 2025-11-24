@@ -46,4 +46,12 @@ model:
 transforms:
   random_crop: True
   crop_size: 256
-  random_flip: False # might not work with revsci - makes mosaic not match expectation
+
+  random_flip: False
+  random_rot90: False
+
+  rgb_gaussian_noise: False
+  rgb_noise_sigma: 0.01
+
+  spectral_jitter: False
+  spectral_jiter_sigma: 0.02

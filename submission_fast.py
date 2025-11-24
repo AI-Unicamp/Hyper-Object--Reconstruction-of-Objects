@@ -112,7 +112,7 @@ def create_submission():
         
         pred_hwc_clipped = np.clip(pred_hwc, 0.0, 1.0)
         
-        output_npz_path = os.path.join(submission_files_dir, f"{img_id}.npz")
+        output_npz_path = os.path.join(submission_files_dir, f"{img_id[0]}.npz")
         np.savez_compressed(output_npz_path, cube=pred_hwc_clipped)
 
     print(f"\nAll {len(submission_dataset)} predictions saved.")

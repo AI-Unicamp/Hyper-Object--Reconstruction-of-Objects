@@ -43,5 +43,15 @@ transforms:
   # whether to apply certain transforms
   random_crop: False
   crop_size: 320
+
   random_flip: False
+  random_rot90: False
+
+  # applies only to input
+  rgb_gaussian_noise: False
+  rgb_noise_sigma: 0.01
+
+  # applies only to output
+  spectral_jitter: False
+  spectral_jiter_sigma: 0.02
 
