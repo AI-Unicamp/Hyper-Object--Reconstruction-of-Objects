@@ -1,8 +1,16 @@
 train:
-  batch_size_train: 4  # batch size. higher users more VRAM
-  num_workers_train: 4 # num. of processes for loading data. higher uses more RAM
-  batch_size_test: 4   # batch size. higher users more VRAM
-  num_workers_test: 3  # num. of processes for loading data. higher uses more RAM
+  batch_size_train: 1  # batch size. higher users more VRAM
+  batch_size_test: 1   # batch size. higher users more VRAM
+
+  num_workers_train: 4 # num. of processes for loading data. IGNORED by train_fast.py
+  num_workers_test: 3  # num. of processes for loading data. ignored by train_fast.py
+  fast:
+    # options for train_fast.py - each input/output stream has its own loader and num_workers
+    num_workers_train_in: 2 
+    num_workers_train_out: 2 
+
+    num_workers_test_in: 2  
+    num_workers_test_out: 2  
 
   epochs: 1000 
   amp: True # whether to use autoscaling
@@ -19,6 +27,9 @@ train:
 
   # how many epochs to wait before testing all metrics
   metrics_report_interval: 5
+
+  # "reverse" training mode - for revsci only. slower but uses less memory
+  rev_mode: False # IGNORED when amp = True
 
 model:
   model_name: "example" # model to use

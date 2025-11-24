@@ -15,36 +15,13 @@ from torch.utils.data import DataLoader
 # - metrics: rmse/sam/sid/ergas/psnr/ssim
 # - render: function to convert HSI cube -> sRGB under D65
 from .losses import ReconLoss
+from models.rev3dcnn import Rev3DCNN
 
-from utils.leaderboard_ssc import evaluate_pair_ssc
+from utils.leaderboard_ssc import evaluate_pair_ssc, evaluate_reconstruction
 
-from dataclasses import dataclass
-from typing import Literal
+from .trainer import TrainerCfg
 
-@dataclass
-class TrainerCfg:
-    out_dir: str = "runs/track1/mosaic2hsi_baseline"
-    epochs: int = 1000
-    amp: bool = True
-
-    # Optimizer & scheduler settings
-    optim: Literal["adam", "adamw"] = "adamw"
-    lr: float = 2e-4
-    weight_decay: float = 1e-4
-    scheduler_type: Literal["cosine", "none"] = "cosine"
-    eta_min: float = 1e-6
-
-    lambda_sam: float = 0.1  # SAM loss weight
-
-    # how many epochs to wait before evaluating all metrics
-    metrics_report_interval: int = 5
-
-    # TODO: implement rev_mode on normal trainer
-    rev_mode: bool = False
-
-# TODO: allow training from checkpoint
-
-class Trainer:
+class FastTrainer:
     """
     Generic trainer for RAW mosaic -> HSI models.
 
@@ -57,16 +34,22 @@ class Trainer:
     def __init__(
         self,
         model: torch.nn.Module,
-        train_loader: DataLoader,
-        val_loader: DataLoader,
+        train_loader_in: DataLoader,
+        train_loader_out: DataLoader,
+        val_loader_in: DataLoader,
+        val_loader_out: DataLoader,
         loss_fn: Optional[torch.nn.Module] = None,
-        device: Optional[torch.device] = torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+        device: torch.device = torch.device("cuda" if torch.cuda.is_available() else "cpu"),
         cfg: TrainerCfg = TrainerCfg(),
         wandb_run: Optional[wandb.Run] = None
     ):
         self.cfg = cfg
-        self.train_loader = train_loader
-        self.val_loader = val_loader   
+
+        self.train_loader_in = train_loader_in
+        self.train_loader_out = train_loader_out
+        self.val_loader_in = val_loader_in
+        self.val_loader_out = val_loader_out
+
         self.device = device 
 
         self.model = model
@@ -129,34 +112,80 @@ class Trainer:
         self.model.train()
         running = 0.0
         n_samples = 0
-        total_samples = len(self.train_loader.dataset)
+        total_samples = len(self.train_loader_in.dataset)
 
-        total_grad_time = 0.0
-        total_time_start = time.time()
-        for batch in self.train_loader:
-            input_img  :   torch.Tensor = batch["input"].to(self.device, non_blocking=True)     # (N,c(1 or 3),H,W)
-            output_cube:   torch.Tensor = batch["output"].to(self.device, non_blocking=True)    # (N,C,H,W)
+        self.train_loader_in.dataset.transforms.set_epoch(epoch)
+        self.train_loader_out.dataset.transforms.set_epoch(epoch)
+        self.train_loader_in.sampler.set_epoch(epoch) # same instance for in/out
 
-            grad_time_start = time.time()
+        total_io_time = 0.0
+        total_time_start = time.perf_counter()
+
+        it_out = iter(self.train_loader_out)
+        gt = next(it_out)[0].to(self.device, non_blocking=True)
+        first_iter = True
+
+        for input_img, _ in self.train_loader_in:
+            input_img = input_img.to(self.device, non_blocking=True)
+
             self.optimizer.zero_grad(set_to_none=True)
-            if self.scaler is None:
-                pred, loss = self._forward_loss(input_img, output_cube)
-                loss.backward()
-                self.optimizer.step()
-            else:
+
+            if self.scaler is not None:
                 with torch.autocast(device_type=self.device.type, dtype=torch.float16):
-                    pred, loss = self._forward_loss(input_img, output_cube)
+                    pred = self.model(input_img)
+
+                    # we're not counting I/O for the input image but that's small anyway
+                    io_time_start = time.perf_counter()
+                    # get gt while GPU computes
+                    if first_iter:
+                       first_iter = False
+                    else:
+                       gt = next(it_out)[0].to(self.device, non_blocking=True)
+                    total_io_time += time.perf_counter() - io_time_start
+
+                    loss = self.loss_fn(pred, gt)
                 self.scaler.scale(loss).backward()
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
-            grad_time = time.time() - grad_time_start
-            total_grad_time += grad_time
+            elif not self.cfg.rev_mode:
+                # begin forward pass BEFORE fetching gt
+                pred = self.model(input_img)
+
+                # get gt while GPU computes
+                if first_iter:
+                    first_iter = False
+                else:
+                    # we're not counting I/O for the input image but that's small anyway
+                    io_time_start = time.perf_counter()
+                    gt = next(it_out)[0].to(self.device, non_blocking=True)
+                    total_io_time += time.perf_counter() - io_time_start
+
+                loss = self.loss_fn(pred, gt)
+                loss.backward()
+                self.optimizer.step()
+            else:
+                self.model: Rev3DCNN
+                pred = self.model.rev_pass_forward(input_img)
+
+                # we're not counting I/O for the input image but that's small anyway
+                io_time_start = time.perf_counter()
+                # get gt while GPU computes
+                if first_iter:
+                   first_iter = False
+                else:
+                   gt = next(it_out)[0].to(self.device, non_blocking=True)
+                total_io_time += time.perf_counter() - io_time_start
+
+                loss = self.loss_fn(pred, gt)
+                self.model.rev_pass_backward(loss)
+                self.optimizer.step()
 
             running += float(loss.item()) * input_img.size(0)
             n_samples += input_img.size(0)
             if n_samples > 0:
                 print(f"[{epoch:03d}] (training...) running avg loss: {(running / n_samples):7.6f}   [ {n_samples:3d} / {total_samples:3d}]", end = '\r')
-
+        
+                     
         avg = running / max(n_samples, 1)
 
         if self.wandb_run is not None:
@@ -165,12 +194,11 @@ class Trainer:
         if self.scheduler is not None:
             self.scheduler.step()
 
-
-        total_time = time.time() - total_time_start
+        total_time = time.perf_counter() - total_time_start
         print(f"\n[{epoch:03d}] training finished.",
               f"Total time: {total_time:.3f}s",
-              f"/ Train time: {total_grad_time:.3f}s",
-              f"/ I/O time: {(total_time-total_grad_time):.3f}s")
+              f"/ Train time: {total_time - total_io_time:.3f}s",
+              f"/ I/O lag: {(total_io_time):.3f}s")
 
         return avg
 
@@ -183,7 +211,7 @@ class Trainer:
 
         loss_sum = 0.0
         n_samples = 0
-        total_samples = len(self.val_loader.dataset)
+        total_samples = len(self.val_loader_in.dataset)
 
         lists_dict: Dict[str, List[float]] = {}
         metric_keys = [
@@ -205,18 +233,26 @@ class Trainer:
         for k in metric_keys:
             lists_dict[k] = []
 
-        total_val_time = 0.0
-        total_time_start = time.time()
+        total_io_time = 0.0
+        total_time_start = time.perf_counter()
 
-        for batch in self.val_loader:
-            input_img  :   torch.Tensor = batch["input"].to(self.device, non_blocking=True)
-            output_cube:   torch.Tensor = batch["output"].to(self.device, non_blocking=True)
+        out_it = iter(self.val_loader_out)
+        gt_cube = next(out_it)[0].to(self.device, non_blocking=True)
+        first_iter = True
+
+        for input_img, _ in self.val_loader_in:
+            input_img = input_img.to(self.device, non_blocking=True)
 
             # forward (no grad)
-            val_time_start = time.time()
             with torch.no_grad():
                 pred_cube = self.model(input_img).clamp(0, 1)
-                loss = self.loss_fn(pred_cube, output_cube)
+                if first_iter:
+                    first_iter = False
+                else:
+                    io_time_start = time.perf_counter()
+                    gt_cube = next(out_it)[0].to(self.device, non_blocking=True)
+                    total_io_time += time.perf_counter() - io_time_start
+                loss = self.loss_fn(pred_cube, gt_cube)
 
             loss_sum += float(loss.item()) * input_img.size(0)
             n_samples += input_img.size(0)
@@ -228,19 +264,20 @@ class Trainer:
             if validate_metrics:
                 for i in range(pred_cube.size(0)):
                     # --- spectral metrics (means over mask) ---
-                    scores = evaluate_pair_ssc(output_cube[i].detach(), pred_cube[i].detach())
+                    if "rgb" not in self.train_loader_out.dataset.img_type:
+                        scores = evaluate_pair_ssc(gt_cube[i].detach(), pred_cube[i].detach())
+                    else:
+                        # reconstructing RGB images, less metrics
+                        scores = evaluate_reconstruction(pred_cube[i].detach(), gt_cube[i].detach())
 
-                    for k in metric_keys:
+                    for k in scores.keys():
                         lists_dict[k].append(scores[k])
 
-            val_time = time.time() - val_time_start
-            total_val_time += val_time
-
-        total_time = time.time() - total_time_start
+        total_time = time.perf_counter() - total_time_start
         print(f"\n[{epoch:03d}] validation finished.",
               f"Time: {total_time:.3f}s",
-              f"/ Val time: {total_val_time:.3f}s",
-              f"/ I/O time: {(total_time-total_val_time):.3f}s")
+              f"/ Val time: {total_time - total_io_time:.3f}s",
+              f"/ I/O lag: {(total_io_time):.3f}s")
 
         out: Dict[str, float] = {}
         out["val_loss"] = loss_sum / max(n_samples, 1)
@@ -265,15 +302,15 @@ class Trainer:
             epoch,
             self._current_lr(),
             train_loss,
-            val_stats.get("val_loss", float("nan")),
-            val_stats.get("SAM_deg", float("nan")),
-            val_stats.get("SID", float("nan")),
-            val_stats.get("ERGAS", float("nan")),
-            val_stats.get("PSNR_dB", float("nan")),
-            val_stats.get("SSIM", float("nan")),
-            val_stats.get("E00", float("nan")),
-            val_stats.get("SSC_arith", float("nan")),
-            val_stats.get("SSC_geom", float("nan"))
+            val_stats.get("val_loss", " "),
+            val_stats.get("SAM_deg", " "),
+            val_stats.get("SID", " "),
+            val_stats.get("ERGAS", " "),
+            val_stats.get("PSNR_dB", " "),
+            val_stats.get("SSIM", " "),
+            val_stats.get("E00", " "),
+            val_stats.get("SSC_arith",  " "),
+            val_stats.get("SSC_geom", " ")
         ]
         with open(self.log_csv, "a", newline="") as f:
             csv.writer(f).writerow(row)
@@ -288,35 +325,46 @@ class Trainer:
         ]
 
         if report_metrics:
-            parts += [
-                # --- Core Reconstruction Metrics ---
-                f"\n[{epoch:03d}] RAW METRICS    |",
-                f"SAM(deg): {val_stats.get('SAM_deg', float('nan')):6.2f}",
-                f"SID: {val_stats.get('SID', float('nan')):7.4f}",
-                f"ERGAS: {val_stats.get('ERGAS', float('nan')):6.3f}",
-                f"PSNR(dB): {val_stats.get('PSNR_dB', float('nan')):6.2f}",
-                f"SSIM: {val_stats.get('SSIM', float('nan')):5.3f}",
-                f"DE00: {val_stats.get('DeltaE00', float('nan')):5.3f}",
+            if "rgb" not in self.train_loader_out.dataset.img_type:
+                parts += [
+                    # --- Core Reconstruction Metrics ---
+                    f"\n[{epoch:03d}] RAW METRICS    |",
+                    f"SAM(deg): {val_stats.get('SAM_deg', float('nan')):6.2f}",
+                    f"SID: {val_stats.get('SID', float('nan')):7.4f}",
+                    f"ERGAS: {val_stats.get('ERGAS', float('nan')):6.3f}",
+                    f"PSNR(dB): {val_stats.get('PSNR_dB', float('nan')):6.2f}",
+                    f"SSIM: {val_stats.get('SSIM', float('nan')):5.3f}",
+                    f"DE00: {val_stats.get('DeltaE00', float('nan')):5.3f}",
 
-                f"\n[{epoch:03d}] SPECTRAL SCORE |",
-                f"S_SPEC:  {val_stats.get('S_SPEC', float('nan')):5.5f} |",
-                f"S_SAM: {val_stats.get('S_SAM', float('nan')):5.5f}",
-                f"S_SID: {val_stats.get('S_SID', float('nan')):5.5f}",
-                f"S_ERGAS: {val_stats.get('S_ERGAS', float('nan')):5.5f}",
+                    f"\n[{epoch:03d}] SPECTRAL SCORE |",
+                    f"S_SPEC:  {val_stats.get('S_SPEC', float('nan')):5.5f} |",
+                    f"S_SAM: {val_stats.get('S_SAM', float('nan')):5.5f}",
+                    f"S_SID: {val_stats.get('S_SID', float('nan')):5.5f}",
+                    f"S_ERGAS: {val_stats.get('S_ERGAS', float('nan')):5.5f}",
 
-                f"\n[{epoch:03d}] SPATIAL SCORE  |",
-                f"S_SPAT:  {val_stats.get('S_SPAT', float('nan')):5.5f} |",
-                f"S_PSNR: {val_stats.get('S_PSNR', float('nan')):5.5f}",
-                f"S_SSIM: {val_stats.get('SSIM', float('nan')):5.5f}",
+                    f"\n[{epoch:03d}] SPATIAL SCORE  |",
+                    f"S_SPAT:  {val_stats.get('S_SPAT', float('nan')):5.5f} |",
+                    f"S_PSNR: {val_stats.get('S_PSNR', float('nan')):5.5f}",
+                    f"S_SSIM: {val_stats.get('SSIM', float('nan')):5.5f}",
 
-                f"\n[{epoch:03d}] COLOR SCORE    |",
-                f"S_COLOR: {val_stats.get('S_COLOR', float('nan')):5.5f}",
+                    f"\n[{epoch:03d}] COLOR SCORE    |",
+                    f"S_COLOR: {val_stats.get('S_COLOR', float('nan')):5.5f}",
 
-                # --- Final Score ---
-                f"\n[{epoch:03d}] FINAL SCORE    |",
-                f"SSC_arith: {val_stats.get('SSC_arith', float('nan')):5.5f}",
-                f"SSC_geom: {val_stats.get('SSC_geom', float('nan')):5.5f}",
-            ]
+                    # --- Final Score ---
+                    f"\n[{epoch:03d}] FINAL SCORE    |",
+                    f"SSC_arith: {val_stats.get('SSC_arith', float('nan')):5.5f}",
+                    f"SSC_geom: {val_stats.get('SSC_geom', float('nan')):5.5f}",
+                ]
+            else:
+                parts += [
+                        f"\n[{epoch:03d}] METRICS:",
+                        f"\n[{epoch:03d}]    SAM(deg): {val_stats.get('SAM_deg', float('nan')):6.3f}",
+                        f"\n[{epoch:03d}]    SID:      {val_stats.get('SID', float('nan')):6.4f}",
+                        f"\n[{epoch:03d}]    ERGAS:    {val_stats.get('ERGAS', float('nan')):6.3f}",
+                        f"\n[{epoch:03d}]    PSNR(dB): {val_stats.get('PSNR_dB', float('nan')):6.2f}",
+                        f"\n[{epoch:03d}]    SSIM:     {val_stats.get('SSIM', float('nan')):6.6f}",
+                        f"\n[{epoch:03d}]    DE00:     {val_stats.get('DeltaE00', float('nan')):6.3f}",
+                    ]
         print("  ".join(parts))
 
     def _save_checkpoint(self, epoch: int, is_best: bool):

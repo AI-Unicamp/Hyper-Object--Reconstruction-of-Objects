@@ -26,10 +26,10 @@ train:
   metrics_report_interval: 5
 
 model:
-  model_name: "revsci_mstpp"
+  model_name: "revsci_mstpp_up"
 
   # replace with pre-trained revsci path
-  pretrained_revsci_path: "runs/track1/revsci_rgb_crop256/model_best.tar"
+  pretrained_revsci_path: "runs/track2/revsci_rgb_up_crop256/model_best.tar"
 
   # revsci params
   n_blocks: 12
@@ -41,9 +41,9 @@ model:
   out_channels: 61
   n_feat: 61 
   stage: 3 
-  upscale_factor: 1
+  upscale_factor: 2
 
 transforms:
   random_crop: True
-  crop_size: 512
+  crop_size: 256
   random_flip: False # might not work with revsci - makes mosaic not match expectation

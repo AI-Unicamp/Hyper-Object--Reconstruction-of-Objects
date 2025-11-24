@@ -5,6 +5,7 @@ from typing import Callable, Optional
 from torch import Tensor # makes typing a little nicer
 from torch.optim import Optimizer
 
+
 # R G
 # G B
 _bayer = torch.tensor([
@@ -20,7 +21,7 @@ def mosaic(imgs: Tensor) -> Tensor:
     """
     Turns 1-channel batched images into sparse 3-channel with Bayer pattern.
     """
-    assert imgs.shape[1] == 1, f"Expected `img` with 1 channel, got {imgs.shape[1]} channels. You might need to change old_mode to False in the configs."
+    assert imgs.shape[1] == 1, f"Expected `img` with 1 channel, got {imgs.shape[1]} channels."
 
     repeated_x = imgs.expand(-1, 3, -1, -1)
 
@@ -52,9 +53,9 @@ class f_g_layer(nn.Module):
     def __init__(self, channels: int):
         super(f_g_layer, self).__init__()
         self.nn_layer = nn.Sequential(
-            nn.Conv3d(channels, channels, 3, padding=1),
+            nn.Conv2d(channels, channels, 3, padding=1),
             nn.LeakyReLU(inplace=True),
-            nn.Conv3d(channels, channels, 3, padding=1),
+            nn.Conv2d(channels, channels, 3, padding=1),
         )
 
     def forward(self, x: Tensor) -> Tensor:
@@ -110,37 +111,32 @@ class RevBlock(nn.Module):
         return h_curr
 
 
-
-class Rev3DCNN(nn.Module):
+class Rev2DCNN(nn.Module):
     """Implementation of RevSCI, from:
     Z. Cheng et al., "Memory-Efficient Network for Large-scale Video Compressive Sensing," doi: 10.1109/CVPR46437.2021.01598.
 
     And code based on: https://github.com/BoChenGroup/RevSCI-net.
 
     Args:
+        msfa (torch.Tensor): MSFA to use against the raw data (shape: C x X x Y).
         n_blocks (int): number of reversible blocks.
         n_split (int): number of splits in each rev block.
-
-        FOR ICASSP CHALLENGE:
-        old_mode (bool): if True, takes in 1-channel inputs instead of 1-channel concat'ed with RGB mosaic. 
     """
 
-    def __init__(self, n_blocks: int, n_split: int, old_mode: bool = False):
+    def __init__(self, n_blocks: int, n_split: int):
         super().__init__()
-
-        self.old_mode = old_mode
 
         # encoding / feature extraction
         self.conv1 = nn.Sequential(
             # input shape: B x 1 x D x W x H
             #         bands go here^
-            nn.Conv3d(1, 16, kernel_size=5, stride=1, padding=2),
+            nn.Conv2d(3, 16, kernel_size=5, stride=1, padding=2),
             nn.LeakyReLU(inplace=True),
-            nn.Conv3d(16, 32, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(inplace=True),
-            nn.Conv3d(32, 32, kernel_size=1, stride=1),
+            nn.Conv2d(32, 32, kernel_size=1, stride=1),
             nn.LeakyReLU(inplace=True),
-            nn.Conv3d(32, 64, kernel_size=3, stride=(1, 2, 2), padding=1),
+            nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),
             nn.LeakyReLU(inplace=True),
         )
         
@@ -151,63 +147,43 @@ class Rev3DCNN(nn.Module):
 
         # decoding
         self.conv2 = nn.Sequential(
-            nn.ConvTranspose3d(64, 32, kernel_size=(1, 3, 3), stride=(1, 2, 2), padding=(0, 1, 1),
-                               output_padding=(0, 1, 1)),
+            nn.ConvTranspose2d(64, 32, kernel_size=(3, 3), stride=2, padding=1,
+                               output_padding=1),
             nn.LeakyReLU(inplace=True),
-            nn.Conv3d(32, 32, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(inplace=True),
-            nn.Conv3d(32, 16, kernel_size=1, stride=1),
+            nn.Conv2d(32, 16, kernel_size=1, stride=1),
             nn.LeakyReLU(inplace=True),
-            nn.Conv3d(16, 1, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(16, 3, kernel_size=3, stride=1, padding=1),
         )
 
         # save output of conv1 and blocks when doing rev passes
         self._last_out_conv1 = torch.tensor([])
         self._last_out_revblocks = torch.tensor([])
 
-    def forward(self, inp: Tensor) -> Tensor:
+    def forward(self, raw: Tensor) -> Tensor:
         """
         Args:
-            FOR ICASSP CHALLENGE:
-            inp (Tensor): raw single-channel concatenated with an RGB mask (shape: B x 4 x W x H).
-
-            Used to take in the single-channel input (shape: B x 1 x W x H) only. To use it like this, you
-            must set old_mode to True.
+            raw (Tensor): the raw single-channel image (shape: B x 1 x W x H).
 
         Returns:
             Tensor: the demosaicked image (shape: B x C x W x H).
         """
-        out: Tensor
-        if not self.old_mode:
-            assert inp.size(1) == 4, "Input size for TRevSCI is incorrect. If you are using a model from an older run, try setting 'old_mode' to True in the config."
-
-            raw = inp[:, 0, :, :].unsqueeze(1)
-            mask = inp[:, 1:, :, :]
-
-            out = raw * mask
-        else:
-            out = mosaic(inp)
+        out: Tensor = mosaic(raw)
 
         # input shape: B x 1 x D x W x H
         # bands go on D
-        out = self.conv1(out.unsqueeze(1))
+        out = self.conv1(out)
         for layer in self.layers:
             out = layer(out)
-        out = self.conv2(out).squeeze(1)
+        out = self.conv2(out)
         return out
 
-    def rev_pass_forward(self, inp: Tensor) -> Tensor:
+    def rev_pass_forward(self, raw: Tensor) -> Tensor:
         """Forward pass skipping gradients in rev blocks."""
-        out: Tensor
-        if not self.old_mode:
-            raw = inp[:, 0, :, :].unsqueeze(1)
-            mask = inp[:, 1:, :, :]
+        out: Tensor = mosaic(raw)
 
-            out = raw * mask
-        else:
-            out = mosaic(inp)
-
-        out = self.conv1(out.unsqueeze(1))
+        out = self.conv1(out)
         self._last_out_conv1 = out 
 
         with torch.no_grad():
@@ -217,7 +193,7 @@ class Rev3DCNN(nn.Module):
         self._last_out_revblocks = out
 
         pred = self.conv2(out)
-        return pred.squeeze(1)
+        return pred
 
     def rev_pass_backward(self, loss: Tensor):
         loss.backward()
