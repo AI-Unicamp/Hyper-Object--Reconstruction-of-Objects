@@ -43,7 +43,7 @@ def setup_model(config: Dict[str, Any]) -> torch.nn.Module:
 
         case "revsci_rgb_up":
             # TRevSCI for RGB demosaicing adapted to track 2 ("rgb_2" -> "rgb_full")
-            to_mosaic = MosaicUp()
+            to_mosaic = MosaicUp(old_mode=config.get("old_mode", False))
             revsci = Rev3DCNN(n_blocks=config.get("n_blocks", 12),
                              n_split=config.get("n_split", 2),
                              old_mode=config.get("old_mode", False))
@@ -81,15 +81,17 @@ def setup_model(config: Dict[str, Any]) -> torch.nn.Module:
 
         case "revsci_mstpp_up":
             # pre-trained TRevSCI (frozen) with MST++, adapted to track 2
-            to_mosaic = MosaicUp()
+            to_mosaic = MosaicUp(old_mode=config.get("old_mode", False))
         
             revsci = Rev3DCNN(n_blocks=config.get("n_blocks", 12),
                              n_split=config.get("n_split", 2),
                              old_mode=config.get("old_mode", False))
-            data = torch.load(config["pretrained_revsci_path"], weights_only=True)
-            revsci.load_state_dict(data["model"])
 
-            for p in revsci.parameters():
+            revsci_rgb_up = torch.nn.Sequential(to_mosaic, revsci)
+            data = torch.load(config["pretrained_revsci_path"], weights_only=True)
+            revsci_rgb_up.load_state_dict(data["model"])
+
+            for p in revsci_rgb_up.parameters():
                 p.requires_grad_(False)
 
             mstpp = MST_Plus_Plus_LateUpsample(in_channels=config.get("in_channels", 3),
@@ -101,7 +103,7 @@ def setup_model(config: Dict[str, Any]) -> torch.nn.Module:
             mstpp.force_direct_lr = config.get("force_direct_lr", True)
 
             model = torch.nn.Sequential(
-                    to_mosaic, revsci, mstpp
+                    revsci_rgb_up, mstpp
                     )
 
             return model

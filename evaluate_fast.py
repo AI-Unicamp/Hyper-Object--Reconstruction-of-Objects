@@ -66,6 +66,7 @@ ds_val_in = PartialDataset(
     track=args.track,  # 1 for mosaic, 2 for rgb_2
     dataset_type="test-public",
     img_type=img_type_in,
+    old_mode=model_config.get("old_mode", False)
 )
 
 ds_val_out = PartialDataset(
@@ -73,6 +74,7 @@ ds_val_out = PartialDataset(
     track=args.track,  # 1 for mosaic, 2 for rgb_2
     dataset_type="test-public",
     img_type=img_type_out,
+    old_mode=model_config.get("old_mode", False)
 )
 
 val_loader_in  = torch.utils.data.DataLoader(

@@ -89,7 +89,8 @@ ds_train_in = PartialDataset(
     track=args.track,  # 1 for mosaic, 2 for rgb_2
     dataset_type="train",
     img_type=img_type_in,
-    transforms=transforms_in
+    transforms=transforms_in,
+    old_mode=model_config.get("old_mode", False)
 )
 
 ds_train_out = PartialDataset(
@@ -97,7 +98,8 @@ ds_train_out = PartialDataset(
     track=args.track,  # 1 for mosaic, 2 for rgb_2
     dataset_type="train",
     img_type=img_type_out,
-    transforms=transforms_out
+    transforms=transforms_out,
+    old_mode=model_config.get("old_mode", False)
 )
 
 ds_val_in = PartialDataset(
@@ -105,6 +107,7 @@ ds_val_in = PartialDataset(
     track=args.track,  # 1 for mosaic, 2 for rgb_2
     dataset_type="test-public",
     img_type=img_type_in,
+    old_mode=model_config.get("old_mode", False)
 )
 
 ds_val_out = PartialDataset(
@@ -112,6 +115,7 @@ ds_val_out = PartialDataset(
     track=args.track,  # 1 for mosaic, 2 for rgb_2
     dataset_type="test-public",
     img_type=img_type_out,
+    old_mode=model_config.get("old_mode", False)
 )
 
 from torch.utils.data import Sampler

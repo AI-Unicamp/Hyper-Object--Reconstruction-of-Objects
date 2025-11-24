@@ -268,9 +268,9 @@ class FastTrainer:
                         scores = evaluate_pair_ssc(gt_cube[i].detach(), pred_cube[i].detach())
                     else:
                         # reconstructing RGB images, less metrics
-                        scores = evaluate_reconstruction(pred_cube[i].detach(), pred_cube[i].detach())
+                        scores = evaluate_reconstruction(pred_cube[i].detach(), gt_cube[i].detach())
 
-                    for k in metric_keys:
+                    for k in scores.keys():
                         lists_dict[k].append(scores[k])
 
         total_time = time.perf_counter() - total_time_start
@@ -357,13 +357,13 @@ class FastTrainer:
                 ]
             else:
                 parts += [
-                        f"\nMETRICS:",
-                        f"\n   SAM(deg): {val_stats.get('SAM_deg', float('nan')):6.3f}",
-                        f"\n   SID:      {val_stats.get('SID', float('nan')):6.4f}",
-                        f"\n   ERGAS:    {val_stats.get('ERGAS', float('nan')):6.3f}",
-                        f"\n   PSNR(dB): {val_stats.get('PSNR_dB', float('nan')):6.2f}",
-                        f"\n   SSIM:     {val_stats.get('SSIM', float('nan')):6.6f}",
-                        f"\n   DE00:     {val_stats.get('DeltaE00', float('nan')):6.3f}",
+                        f"\n[{epoch:03d}] METRICS:",
+                        f"\n[{epoch:03d}]    SAM(deg): {val_stats.get('SAM_deg', float('nan')):6.3f}",
+                        f"\n[{epoch:03d}]    SID:      {val_stats.get('SID', float('nan')):6.4f}",
+                        f"\n[{epoch:03d}]    ERGAS:    {val_stats.get('ERGAS', float('nan')):6.3f}",
+                        f"\n[{epoch:03d}]    PSNR(dB): {val_stats.get('PSNR_dB', float('nan')):6.2f}",
+                        f"\n[{epoch:03d}]    SSIM:     {val_stats.get('SSIM', float('nan')):6.6f}",
+                        f"\n[{epoch:03d}]    DE00:     {val_stats.get('DeltaE00', float('nan')):6.3f}",
                     ]
         print("  ".join(parts))
 

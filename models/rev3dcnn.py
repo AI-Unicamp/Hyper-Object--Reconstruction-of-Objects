@@ -181,7 +181,7 @@ class Rev3DCNN(nn.Module):
         if not self.old_mode:
             assert inp.size(1) == 4, "Input size for TRevSCI is incorrect. If you are using a model from an older run, try setting 'old_mode' to True in the config."
 
-            raw = inp[:,  0, :, :]
+            raw = inp[:, 0, :, :].unsqueeze(1)
             mask = inp[:, 1:, :, :]
 
             out = raw * mask
@@ -200,7 +200,7 @@ class Rev3DCNN(nn.Module):
         """Forward pass skipping gradients in rev blocks."""
         out: Tensor
         if not self.old_mode:
-            raw = inp[:,  0, :, :]
+            raw = inp[:, 0, :, :].unsqueeze(1)
             mask = inp[:, 1:, :, :]
 
             out = raw * mask

@@ -25,6 +25,9 @@ train:
 
   metrics_report_interval: 5
 
+  # "reverse" training mode - for revsci only. slower but uses less memory
+  rev_mode: False # IGNORED when amp = True
+
 model:
   model_name: "revsci_rgb_up"
 

@@ -34,6 +34,7 @@ class PartialDataset(Dataset):
         dataset_type: Literal["train", "test-public"],
         img_type: Literal["hsi_61", "hsi_61_zarr", "mosaic", "rgb_2", "rgb_full"],
         transforms: Optional[DeterministicTransforms] = None,
+        old_mode: bool = False # whether to use old input mode for mosaic
     ) -> None:
         super().__init__()
         self.track = track 
@@ -45,6 +46,8 @@ class PartialDataset(Dataset):
         self.zarr_cache: list[zarr.Array | zarr.Group | None] = [None] * len(self.paths)
 
         self.transforms = transforms
+        
+        self.old_mode = old_mode
 
     def __len__(self) -> int:
         return len(self.paths)
@@ -68,13 +71,14 @@ class PartialDataset(Dataset):
                 mosaic = read_mosaic(path)                                  # (H,W,1) float32 [0,1]
                 out = torch.from_numpy(np.transpose(mosaic, (2, 0, 1)))    # 1,H,W
 
-                _, H, W = out.shape
-                ry = H // 2 + 1
-                rx = W // 2 + 1
-                repeated_bayer = _bayer.repeat(1, ry, rx)[:, :H, :W]
+                if not self.old_mode:
+                    _, H, W = out.shape
+                    ry = H // 2 + 1
+                    rx = W // 2 + 1
+                    repeated_bayer = _bayer.repeat(1, ry, rx)[:, :H, :W]
 
-                # concat bayer with input to ensure alignment in transforms
-                out = torch.cat([out, repeated_bayer]) # (4, H, W)
+                    # concat bayer with input to ensure alignment in transforms
+                    out = torch.cat([out, repeated_bayer]) # (4, H, W)
             case "rgb_2":
                 rgb_2 = read_rgb_image(path)                             # (H,W,3) float32 [0,1]
                 out = torch.from_numpy(np.transpose(rgb_2, (2, 0, 1)))  # C,H,W
