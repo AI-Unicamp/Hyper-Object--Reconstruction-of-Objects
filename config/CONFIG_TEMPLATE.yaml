@@ -31,6 +31,10 @@ train:
   # "reverse" training mode - for revsci only. slower but uses less memory
   rev_mode: False # IGNORED when amp = True
 
+  # when true, draws inputs from each category based on their validation loss. forces batch_size_test=1.
+  # if you set this to True, do NOT use the default indexing, as the training will then ignore cats 2 and 4
+  balance_cats: False
+
 model:
   model_name: "example" # model to use
   

@@ -42,6 +42,8 @@ class TrainerCfg:
     # TODO: implement rev_mode on normal trainer
     rev_mode: bool = False
 
+    balance_cats: bool = False
+
 # TODO: allow training from checkpoint
 
 class Trainer:
@@ -271,7 +273,7 @@ class Trainer:
             val_stats.get("ERGAS", float("nan")),
             val_stats.get("PSNR_dB", float("nan")),
             val_stats.get("SSIM", float("nan")),
-            val_stats.get("E00", float("nan")),
+            val_stats.get("DeltaE00", float("nan")),
             val_stats.get("SSC_arith", float("nan")),
             val_stats.get("SSC_geom", float("nan"))
         ]

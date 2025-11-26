@@ -233,6 +233,16 @@ class FastTrainer:
         for k in metric_keys:
             lists_dict[k] = []
 
+        cat_names = [
+                "Category-1",
+                "Category-2",
+                "Category-3",
+                "Category-4"
+                ]
+        cat_losses: dict[str, list[float]] = {}
+        for c in cat_names:
+            cat_losses[c] = []
+
         total_io_time = 0.0
         total_time_start = time.perf_counter()
 
@@ -240,7 +250,7 @@ class FastTrainer:
         gt_cube = next(out_it)[0].to(self.device, non_blocking=True)
         first_iter = True
 
-        for input_img, _ in self.val_loader_in:
+        for input_img, batch_ids in self.val_loader_in:
             input_img = input_img.to(self.device, non_blocking=True)
 
             # forward (no grad)
@@ -256,6 +266,13 @@ class FastTrainer:
 
             loss_sum += float(loss.item()) * input_img.size(0)
             n_samples += input_img.size(0)
+
+            if self.cfg.balance_cats:
+                # we have enforced batch_size_test = 1
+                img_id = batch_ids[0]
+                for cat in cat_names:
+                    if cat in img_id:
+                        cat_losses[cat].append(loss.item())
 
             if n_samples > 0:
                 print(f"[{epoch:03d}] (validating...) running avg loss: {(loss_sum / n_samples):7.6f}   [ {n_samples:3d} / {total_samples:3d}]", end = '\r')
@@ -278,6 +295,14 @@ class FastTrainer:
               f"Time: {total_time:.3f}s",
               f"/ Val time: {total_time - total_io_time:.3f}s",
               f"/ I/O lag: {(total_io_time):.3f}s")
+
+        if self.cfg.balance_cats:
+            cat_mean_losses = [0.0] * 4
+            for i, cat in enumerate(cat_names):
+                if cat_losses[cat]: # empty
+                    cat_mean_losses[i] = np.mean(cat_losses[cat])
+            # in and out share same instance, only need to do it once
+            self.train_loader_in.sampler.last_cat_losses(cat_mean_losses)
 
         out: Dict[str, float] = {}
         out["val_loss"] = loss_sum / max(n_samples, 1)
@@ -308,7 +333,7 @@ class FastTrainer:
             val_stats.get("ERGAS", " "),
             val_stats.get("PSNR_dB", " "),
             val_stats.get("SSIM", " "),
-            val_stats.get("E00", " "),
+            val_stats.get("DeltaE00", " "),
             val_stats.get("SSC_arith",  " "),
             val_stats.get("SSC_geom", " ")
         ]

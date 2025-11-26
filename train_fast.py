@@ -13,6 +13,8 @@ from utils.tools_wandb import ToolsWandb
 from datasets.partial import PartialDataset
 from datasets.det_transform import DeterministicTransforms
 
+from trainer.samplers import SimpleShuffleSampler, LossBalancedSampler
+
 from models import setup_model
 
 from typing import Dict, Any
@@ -133,29 +135,10 @@ ds_val_out = PartialDataset(
     old_mode=model_config.get("old_mode", False)
 )
 
-from torch.utils.data import Sampler
-class SharedShuffledSampler(Sampler[int]):
-    def __init__(self, data_len: int, base_seed: int = 0):
-        self.base_seed = int(base_seed)
-        self.epoch = 0
-        self._indices = torch.arange(data_len)
-
-    def set_epoch(self, epoch: int):
-        """Reshuffle indices deterministically for this epoch."""
-        self.epoch = int(epoch)
-        g = torch.Generator()
-        g.manual_seed(self.base_seed + self.epoch)
-        perm = torch.randperm(len(self._indices), generator=g)
-        self._indices = self._indices[perm]
-
-    def __iter__(self):
-        # DataLoader in the main process will call this each epoch
-        return iter(self._indices.tolist())
-
-    def __len__(self):
-        return len(self._indices)
-
-shared_sampler = SharedShuffledSampler(len(ds_train_in), base_seed=rng_seed)
+if train_config.get("balance_cats", False):
+    shared_sampler = LossBalancedSampler(ds_train_in.get_ids())
+else:
+    shared_sampler = SimpleShuffleSampler(len(ds_train_in), base_seed=rng_seed)
 
 train_loader_in = DataLoader(
         ds_train_in,
@@ -177,9 +160,14 @@ train_loader_out = DataLoader(
         persistent_workers=True
     )
 
+if train_config.get("balance_cats", False):
+    batch_size_test = 1
+else:
+    batch_size_test = train_config.get("batch_size_test", 4)
+
 val_loader_in  = DataLoader(
         ds_val_in,
-        batch_size=train_config.get("batch_size_test", 4),
+        batch_size=batch_size_test,
         num_workers=train_config["fast"].get("num_workers_test_in", 4),
         shuffle=False,
         pin_memory=True,
@@ -188,7 +176,7 @@ val_loader_in  = DataLoader(
 
 val_loader_out  = DataLoader(
         ds_val_out,
-        batch_size=train_config.get("batch_size_test", 4),
+        batch_size=batch_size_test,
         num_workers=train_config["fast"].get("num_workers_test_out", 4),
         shuffle=False,
         pin_memory=True,
@@ -215,7 +203,8 @@ cfg = TrainerCfg(
         eta_min=train_config.get("eta_min", 1e-6),
         lambda_sam=train_config.get("lambda_sam", 0.1),     
         metrics_report_interval=train_config.get("metrics_report_interval", 5),
-        rev_mode=train_config.get("rev_mode", False)
+        rev_mode=train_config.get("rev_mode", False),
+        balance_cats=train_config.get("balance_cats", False)
     )
 
 loss_fn = ReconLoss(lambda_sam=cfg.lambda_sam)
