@@ -18,6 +18,8 @@ train:
 
   metrics_report_interval: 5
 
+  balance_cats: False
+
 model:
   model_name: "raw2hsi"
   

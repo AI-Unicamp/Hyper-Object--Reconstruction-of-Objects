@@ -26,6 +26,8 @@ train:
 
   metrics_report_interval: 5
 
+  balance_cats: False
+
 model:
   model_name: "mst_plus_plus_up"
   
