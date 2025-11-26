@@ -24,6 +24,7 @@ parser.add_argument("-c", "--config", type=str, required=False, help="path of co
 parser.add_argument("-i", "--data_in", type=str, required=False, help="dataset to use for input loader (e.g. rgb_2, mosaic, etc.)")
 parser.add_argument("-o", "--data_out", type=str, default="hsi_61_zarr", required=False, help="dataset to use for output loader (e.g. hsi_61, hsi_61_zarr, etc.)")
 parser.add_argument("-s", "--seed", type=str, required=False, help="seed for transform/shuffler RNG")
+parser.add_argument("--index", type=str, default="config/indexing/default.txt", required=False, help="path to index of IDs to use for testing")
 
 # TODO: implement
 # parser.add_argument("--continue_from", type=str, required=False, help="checkpoint to start from")
@@ -97,10 +98,12 @@ else:
 
 img_type_out = args.data_out
 
+with open(args.index, "r") as f:
+    test_ids = [line.rstrip() for line in f]
+
 ds_train_in = PartialDataset(
     data_root=f"{args.data_dir}",
-    track=args.track,  # 1 for mosaic, 2 for rgb_2
-    dataset_type="train",
+    exclude=test_ids,
     img_type=img_type_in,
     transforms=transforms_in,
     old_mode=model_config.get("old_mode", False)
@@ -108,25 +111,24 @@ ds_train_in = PartialDataset(
 
 ds_train_out = PartialDataset(
     data_root=f"{args.data_dir}",
-    track=args.track,  # 1 for mosaic, 2 for rgb_2
-    dataset_type="train",
+    exclude=test_ids,
     img_type=img_type_out,
     transforms=transforms_out,
     old_mode=model_config.get("old_mode", False)
 )
 
+train_ids = ds_train_in.get_ids()
+
 ds_val_in = PartialDataset(
     data_root=f"{args.data_dir}",
-    track=args.track,  # 1 for mosaic, 2 for rgb_2
-    dataset_type="test-public",
+    exclude=train_ids,
     img_type=img_type_in,
     old_mode=model_config.get("old_mode", False)
 )
 
 ds_val_out = PartialDataset(
     data_root=f"{args.data_dir}",
-    track=args.track,  # 1 for mosaic, 2 for rgb_2
-    dataset_type="test-public",
+    exclude=train_ids,
     img_type=img_type_out,
     old_mode=model_config.get("old_mode", False)
 )

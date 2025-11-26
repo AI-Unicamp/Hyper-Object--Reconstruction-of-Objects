@@ -30,9 +30,10 @@ class PartialDataset(Dataset):
     def __init__(
         self,
         data_root: str,
-        track: Literal[1, 2],
-        dataset_type: Literal["train", "test-public", "test-private"],
         img_type: Literal["hsi_61", "hsi_61_zarr", "mosaic", "rgb_2", "rgb_full"],
+        track: Optional[Literal[1, 2]] = None,
+        exclude: Optional[list[str]] = None,
+        dataset_type: Optional[Literal["train", "test-public", "test-private"]] = None,
         transforms: Optional[DeterministicTransforms] = None,
         old_mode: bool = False # whether to use old input mode for mosaic
     ) -> None:
@@ -40,8 +41,33 @@ class PartialDataset(Dataset):
         self.track = track 
         self.img_type = img_type
 
-        path = f"{data_root}/track{track}/{dataset_type}/{img_type}"
-        self.paths = sorted([Path(f"{path}/{f}") for f in os.listdir(path)])
+        if track is not None and dataset_type is not None:
+            path = f"{data_root}/track{track}/{dataset_type}/{img_type}"
+            self.paths = sorted([Path(f"{path}/{f}") for f in os.listdir(path)])
+        else:
+            # cursed loop that searches through everywhere the files could be
+            self.paths = []
+            for t in [1, 2]:
+                for dtype in ["train", "test-public"]:
+                    try:
+                        dir = f"{data_root}/track{t}/{dtype}/{img_type}"
+                        filenames = os.listdir(dir)
+                    except FileNotFoundError:
+                        continue
+
+                    for name in filenames:
+                        sample_id = os.path.splitext(name)[0]
+                        if exclude is not None and sample_id in exclude:
+                            continue
+                        # only add if we don't already have it from somewhere else
+                        in_paths = False
+                        for p in self.paths:
+                            in_paths = (name in os.path.split(p)[1])
+                        if not in_paths:
+                            self.paths.append(f"{dir}/{name}")
+
+            self.paths = sorted(self.paths)
+
 
         self.zarr_cache: list[zarr.Array | zarr.Group | None] = [None] * len(self.paths)
 
@@ -56,6 +82,9 @@ class PartialDataset(Dataset):
         if self.zarr_cache[idx] is None:
             self.zarr_cache[idx] = zarr.open(str(self.paths[idx]), mode='r')
         return self.zarr_cache[idx]["data"][:]
+
+    def get_ids(self):
+        return [os.path.splitext(os.path.split(p)[1])[0] for p in self.paths]
 
     def __getitem__(self, idx: int):
         path = self.paths[idx]
