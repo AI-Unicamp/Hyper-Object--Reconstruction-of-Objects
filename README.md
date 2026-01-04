@@ -217,19 +217,23 @@ For example, `--index config/indexing/alt.txt` points to an index of 12 images (
 
 ---
 
-### 3. Avaliando o modelo em test-public
-```python evaluate.py --track TRACK --config PATH_TO_CONFIG --model path/to/model.tar```
-Para validar um modelo treinado, basta passar a configuração utilizada assim como o checkpoint salvo.
+### 3. Evaluating the model on `test-public`
+> ```bash
+> python evaluate.py --track TRACK --config PATH_TO_CONFIG --model path/to/model.tar
+> ```
 
-#### Avaliação acelerada
-Igualmente ao `train_fast.py`, agora há o `evaluate_fast.py`, que possibilita validação de treinos alternativos como o da TRevSCI.
+To validate a trained model, provide the configuration that was used for training and the saved checkpoint.
+
+#### Faster evaluation
+Similarly to `train_fast.py`, there is also `evaluate_fast.py`, which enables evaluation for alternative training pipelines such as TRevSCI.
+
 ```python evaluate_fast.py --track TRACK --config PATH_TO_CONFIG --model path/to/model.tar```
 Modelos treinados com o `train_fast.py` também salvam a sua configuração com o modelo, então `--config` pode ser omitido. Por ex:
 ```
 python evaluate_fast.py --track TRACK --model runs/track1/blahblah/
 ```
 
-### 7. Gerando predições para test-private
+### 4. Gerando predições para test-private
 ```
 python submission.py --track TRACK --config PATH_TO_CONFIG --model path/to/model.tar
 ```
@@ -242,17 +246,17 @@ Se quiser rodar um modelo treinado com o script antigo, precisa fazer a seguinte
 +  model.load_state_dict(checkpoint)
 ```
 
-#### Predição acelerada
+#### (Optional) 4.1. Predição acelerada
 Para usar modelos com a pipeline TRevSCI->MST++, é preciso usar o script `submission_fast.py`. A lógica é a mesma do
 `evaluate_fast.py`.
 
-### 8. Adicionar um modelo
+### 5. Adicionar um modelo
 Para adicionar um novo modelo:
 1. Implemente o modelo na pasta `models/`, como em `example.py`.
 2. Adicione uma configuração para o modelo em `configs/`, a partir do arquivo `CONFIG_TEMPLATE.yaml`.
 3. Em `models/__init__.py`, altere a função `setup_model` para incluir o setup do modelo, a partir do exemplo no arquivo.
 
-### 9. wandb
+### 6. Weights & Biases
 Para salvar os dados de treino para o wandb, primeiro é necessário fazer o login com:
 ```
 wandb login
