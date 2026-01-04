@@ -73,7 +73,7 @@ If you installed conda but you get "command not found", you may need to initiali
 > source ~/miniconda3/bin/activate
 > ```
 
-### 1.1.3. Quick checks (optional)
+### 1.1.3. (Optional) Quick checks
 > ```bash
 > # Show which Python you're using
 > which python
@@ -81,9 +81,6 @@ If you installed conda but you get "command not found", you may need to initiali
 > # If using conda, list environments
 > conda info --envs
 > ```
-
-##############################################################3
-
 
 ### 1.2. Upload the data
 - Upload the dataset into the `data/` folder.
@@ -167,30 +164,48 @@ Entre na pasta onde está o arquivo requirements.txt e execute:
 > pip install -r requirements.txt
 > ```
 
-### 2. Treinando os modelos
-```
-python train.py --track TRACK --config PATH_TO_CONFIG
-```
-Onde `TRACK` deve ser substituído pela track a utilizar (1 ou 2) e `PATH_TO_CONFIG` é um arquivo de configuração.
-Caso a configuração não seja especificada, o script usará o baseline. Ou seja, para treinar o baseline do track 2, basta:
-```
-python train.py --track 2
-```
+### 2. Training the models
 
-- Case dê OOM, pode ser que seja melhor usar a variável de ambiente: `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`
+To train a model, run:
 
-#### Treino acelerado
-O script `train_fast.py` possibilita um treino mais rápido ao carregar as entradas (leves) e saídas (pesadas) separadamente,
-além de possibilitar outros esquemas de treino (por ex. treino da TRevSCI requer esse script). Rodando
-```
-python train_fast.py --track TRACK --config PATH_TO_CONFIG
-```
-ele irá automaticamente usar a entrada `mosaic` ou `rgb_2` para a track 1 ou 2, respectivamente, além de usar `hsi_61_zarr`
-para a saída. Se você não tiver esse subset instalado, deve usar a flag `-o hsi_61`. Pode-se mudar o dataset de entrada usando
-a flag `-i`. Para treinar o MST++ no `rgb_full` para tentar gerar o `hsi_61`, por exemplo, pode-se fazer:
+> ```bash
+> python train.py --track TRACK --config PATH_TO_CONFIG
+> ```
+
+Where `TRACK` should be replaced with the track you want to use (2 for Track 2, 1 for Track 1) and `PATH_TO_CONFIG` is a configuration file path.
+
+If no configuration is provided, the script will use the default baseline. For example, to train the Track 2 baseline, simply run:
+
+> ```bash
+> python train.py --track 2
+> ```
+
+- If you run into CUDA out-of-memory (OOM) issues, it may help to set: `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`
+
+#### (Optional) 2.1. Faster training
+The `train_fast.py` enables faster training by loading inputs (light) and outputs (heavy) separately, and it also supports additional training schemes (for example, TRevSCI training requires this script).
+
+Run:
+
+> ```bash
+> python train_fast.py --track TRACK --config PATH_TO_CONFIG
+> ```
+
+By default, it will automatically:
+- Use `rgb_2`as the input for Track 2 (and `mosaic` for Track 1).
+- Use `hsi_61_zarr` as the output target.
+
+If you do **not** have `hsi_61_zarr` installed, you should use the flag `-o hsi_61`.
+You can change:
+- the input dataset with the flag `-i`
+- the output dataset with `-o`.
+
+For example, to train MST++ using `rgb_full` as input and predict `hsi_61`:
+
 ```
 python train_fast.py --config PATH_TO_CONFIG -i rgb_full -o hsi_61
 ```
+############################
 A flag `-s SEED` também pode ser utilizada para gerar treinos replicáveis (i.e. shuffles e transforms pré-determinados).
 
 #### Indexação alternativa para dados de teste
