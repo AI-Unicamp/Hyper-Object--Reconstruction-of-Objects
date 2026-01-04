@@ -164,6 +164,9 @@ Entre na pasta onde está o arquivo requirements.txt e execute:
 > pip install -r requirements.txt
 > ```
 
+---
+
+
 ### 2. Training the models
 
 To train a model, run:
@@ -202,17 +205,19 @@ You can change:
 
 For example, to train MST++ using `rgb_full` as input and predict `hsi_61`:
 
-```
-python train_fast.py --config PATH_TO_CONFIG -i rgb_full -o hsi_61
-```
-############################
-A flag `-s SEED` também pode ser utilizada para gerar treinos replicáveis (i.e. shuffles e transforms pré-determinados).
+> ```bash
+> python train_fast.py --config PATH_TO_CONFIG -i rgb_full -o hsi_61
+> ```
 
-#### Indexação alternativa para dados de teste
-Com o script `train_fast.py`, pode-se indicar um arquivo com a flag `--index` listando os IDs das samples a serem usadas
-como dataset de test. `--index config/indexing/alt.txt` aponta para uma índice de 12 imagens, 4 de cada categoria.
+You can also use `-s SEED` to make training runs reproducible (i.e., deterministic shuffles and transforms).
 
-### 6. Avaliando o modelo em test-public
+#### (Optional) 2.2. Alternative indexing for test data
+With `train_fast.py`, you can specify an index file using `--index` listing the sample IDs to be used as the test dataset.
+For example, `--index config/indexing/alt.txt` points to an index of 12 images (4 from each category).
+
+---
+
+### 3. Avaliando o modelo em test-public
 ```python evaluate.py --track TRACK --config PATH_TO_CONFIG --model path/to/model.tar```
 Para validar um modelo treinado, basta passar a configuração utilizada assim como o checkpoint salvo.
 
