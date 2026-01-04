@@ -1,8 +1,8 @@
-# RainbowAI-2026-ICASSP-SPGC-GC7-Track2
+# A Clear Starting Point: A Reproducible Experimental Framework for the ICASSP 2026 Hyper-Object Challenge
+
 We present a reproducible experimental framework for the ICASSP 2026 Hyperobject Challenge (Track 2), focusing on baseline engineering rather than architectural changes. Using the official organizer-provided baseline as a fixed reference, we standardize data handling, training and evaluation control, and experiment configuration to enable reliable comparison and rapid ablation. Our framework includes reproducible workflows, category-aware sampling, and practical I/O optimizations. Without modifying the baseline architecture, we achieve competitive performance (0.57146/SSC on the test-private split).
 
-Hyperobject Challenge official repository: https://github.com/hyper-object/2026-ICASSP-SPGC
-Hyperobject Challenge official page: https://hyper-object.github.io/
+> Hyperobject Challenge official repository: https://github.com/hyper-object/2026-ICASSP-SPGC
 
 This repository contains:
 - Complete reproducible tutorial (README)
@@ -11,9 +11,25 @@ This repository contains:
 - (conferir) Conversion script .h5 -> .zarr
 - (conferir) Code for SMOTE generation
 
+## The Challenge - Track 2 summary (from the official challenge README)
 
+This repository provides a **reproducible training/evaluation framework** for the **ICASSP 2026 Hyper-Object Challenge — Track 2 (SPGC GC7)**.
 
-## The Challenge (informações retiradas do readme oficial)
+- **Input:** low-resolution RGB image captured with a commodity camera  
+- **Output:** high-resolution hyperspectral cube with **C = 61** spectral bands, with **spatial upscaling**  
+- **Ranking metric:** **Spectral–Spatial–Color (SSC)** score in **[0, 1]**
+  - **Spectral:** SAM, SID, ERGAS
+  - **Spatial:** PSNR, SSIM computed on a **standardized sRGB render** (D65 illuminant, CIE 1931 2°)
+  - **Color:** ΔE00 computed on the same standardized sRGB render
+
+Official page: https://hyper-object.github.io/
+
+---
+
+### 1) Setup
+
+ICASSP 2026 Hyperobject Challenge (Track 2)
+SPGC GC7 Track 2
 Track 2 — Joint Spatial & Spectral Super-Resolution
   Input: low-resolution RGB image captured with a commodity camera.
   Output: high-resolution hyperspectral cube with C = 61 and spatial upscaling.
@@ -22,7 +38,6 @@ Submissions are ranked by Spectral-Spatial-Color (SSC) score, range in [0,1].
   Spectral: SAM, SID, ERGAS
   Spatial: PSNR, SSIM on a standardized sRGB render (D65, CIE 1931 2°)
   Color: ΔE00 on the same sRGB render
-
 
 
 ## README DO REPOSITÓRIO ORIGINAL:
@@ -236,3 +251,6 @@ python train.py --track TRACK --config PATH_TO_CONFIG --use_wandb
 - PSNR_dB (↑): qualidade de imagem (>35 dB bom, >40 ótimo)
 - SSIM (0–1, ↑): estrutura da imagem (>0.9 bom, >0.95 ótimo)
 - DeltaE00 (↓): diferença de cor perceptual (<3 bom, <1 ótimo)
+
+
+ADICIONAR COLOCAÇÃO (RANKING) - IMAGEM
