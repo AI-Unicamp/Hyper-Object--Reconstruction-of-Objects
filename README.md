@@ -255,7 +255,7 @@ If you want to run a model trained with the old script, you need to apply the fo
 To use models with the TRevSCI->MST++ pipeline, you must use the `submission_fast.py` script. The logic is the same as in `evaluate_fast.py`.
 
 ### 5. Adding a model
-To add a new model?
+To add a new model:
 1. Implement the model inside `models/`, following `example.py`.
 2. Add a configuration for the model in `configs/`, starting from `CONFIG_TEMPLATE.yaml`.
 3. In `models/__init__.py`, update the `setup_model` function to include the model setup, following the example in the file.
