@@ -27,60 +27,65 @@ Official page: https://hyper-object.github.io/
 ---
 
 ## Tutorial — ICASSP 2026 Hyperobject Challenge (Track 2)
-### 1) Setup
+### 1. Setup
 
 This section explains how to set up the environment to run the Track 2 baseline.
 
----
-
-## Running the challenge baseline
-
-### 1. Create an environment (choose one)
+### 1.1. Create an environment
 
 You should create **one isolated environment per model/experiment** to avoid dependency conflicts.
 
-Pick **either**:
+Pick either:
 
-- **Python `venv` (recommended when allowed):** lightweight, built into Python, and ideal for projects that mostly depend on Python packages. :contentReference[oaicite:0]{index=0}  
-- **Conda environment (often required on labs/clusters):** manages the Python version *and* binary dependencies (compiled libraries), and is commonly adopted in academic/HPC setups. Follow your lab’s rules if they apply (e.g., some labs require Conda). :contentReference[oaicite:1]{index=1}  
+- **Python `venv`:** (official docs: https://docs.python.org/3/library/venv.html). Lightweight and built into Python. Best when you only need Python packages and you already have a suitable Python version installed.
+- **Conda environment:** (official docs: https://docs.conda.io/). Manages the Python version and binary dependencies (compiled libraries), and is commonly adopted in academic/HPC setups. Follow your lab’s rules if they apply (e.g., some labs require Conda).
 
-If you don’t have Conda installed yet, **Miniconda** is the minimal official installer and is a common choice. :contentReference[oaicite:2]{index=2}
+If you don’t have Conda installed yet, **Miniconda** is the minimal official installer and is a common choice: https://docs.conda.io/projects/miniconda/en/latest/.
 
----
+Steps:
+1. Create a environment (venv or conda) (recommended: one environment per model)
+2. Activate the environment
+3. Install the requirements
 
-### 1.1 Create a Python virtual environment (`venv`)
+#### 1.1.1. Option 1: Create a Python virtual environment (`venv`)
+> Commands below assume macOS/Linux.
 
-- Go to the repository folder
-- Create a `venv` (recommended: **one environment per model**)
-- Activate the environment
-- Install requirements
+> ```bash
+> cd 2026-ICASSP-SPGC
+> mkdir -p venvs
+> # Create the virtual environment inside /venvs
+> python3 -m venv baseline-env
+> # Activate it
+> source venvs/baseline-env/bin/activate
+> ```
 
-```bash
-cd 2026-ICASSP-SPGC
-mkdir -p venvs
-cd venvs
+#### 1.1.2. Option 2: Create a Conda environment
 
-python3 -m venv venv-baseline
-source venv-baseline/bin/activate
+> ```bash
+> # Create and activate an environment (here we are using Python 3.11)
+> conda create -n baseline-venv python=3.11 -y
+> conda activate baseline-env
+> ```
 
-pip install -r ../requirements.txt
-```
+If you installed conda but you get "command not found", you may need to initialize it for your shell (see Conda docs: https://docs.conda.io/). Example (common in some setups):
+> ```bash
+> # manually activate conda (path may differ)
+> source ~/miniconda3/bin/activate
+> ```
 
-### 1.2 Create a Conda environment
-# If you installed conda and get "command not found", you may need to initialize it for your shell.
-# See the official Miniconda + conda docs for setup details.
-# Example (common in some setups):
-# source ~/miniconda3/bin/activate
+### 1.2. Install repo requirements (after activating the environment):
+> ```bash
+> pip install -r requirements.txt
+> ```
 
-conda create -n baseline-venv python=3.11 -y
-conda activate baseline-venv
-
-# (Recommended) install repo requirements after activating:
-pip install -r requirements.txt
-
-# Check environments with:
-# conda info --envs
-
+### 1.3. Quick checks (optional)
+> ```bash
+> # Show which Python you're using
+> which python
+> python --version
+> # If using conda, list environments
+> conda info --envs
+> ```
 
 ##############################################################3
 
