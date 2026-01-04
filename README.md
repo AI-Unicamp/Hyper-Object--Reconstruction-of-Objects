@@ -16,57 +16,74 @@ This repository contains:
 This repository provides a **reproducible training/evaluation framework** for the **ICASSP 2026 Hyper-Object Challenge — Track 2 (SPGC GC7)**.
 
 - **Input:** low-resolution RGB image captured with a commodity camera  
-- **Output:** high-resolution hyperspectral cube with **C = 61** spectral bands, with **spatial upscaling**  
-- **Ranking metric:** **Spectral–Spatial–Color (SSC)** score in **[0, 1]**
+- **Output:** high-resolution hyperspectral cube with **C = 61** spectral bands and **spatial upscaling**  
+- **Ranking metric:** **Spectral–Spatial–Color (SSC)** score in **[0,1]**
   - **Spectral:** SAM, SID, ERGAS
-  - **Spatial:** PSNR, SSIM computed on a **standardized sRGB render** (D65 illuminant, CIE 1931 2°)
+  - **Spatial:** PSNR, SSIM computed on a **standardized sRGB render** (D65, CIE 1931 2°)
   - **Color:** ΔE00 computed on the same standardized sRGB render
 
 Official page: https://hyper-object.github.io/
 
 ---
 
+## Tutorial — ICASSP 2026 Hyperobject Challenge (Track 2)
 ### 1) Setup
 
-ICASSP 2026 Hyperobject Challenge (Track 2)
-SPGC GC7 Track 2
-Track 2 — Joint Spatial & Spectral Super-Resolution
-  Input: low-resolution RGB image captured with a commodity camera.
-  Output: high-resolution hyperspectral cube with C = 61 and spatial upscaling.
+This section explains how to set up the environment to run the Track 2 baseline.
 
-Submissions are ranked by Spectral-Spatial-Color (SSC) score, range in [0,1].
-  Spectral: SAM, SID, ERGAS
-  Spatial: PSNR, SSIM on a standardized sRGB render (D65, CIE 1931 2°)
-  Color: ΔE00 on the same sRGB render
+---
 
+## Running the challenge baseline
 
-## README DO REPOSITÓRIO ORIGINAL:
+### 1. Create an environment (choose one)
 
-## Para rodar o baseline do challenge:
-### 1. Crie um virtual environment. Obs.: confira as regras do seu lab (no MIC Lab, por ex., deve-se criar um conda environment, e não um python environment).
+You should create **one isolated environment per model/experiment** to avoid dependency conflicts.
 
-#### 1.1. Criando um virtual environment (python)
-- Entre na pasta de interesse
-- Crie um venv (obs.: criar um venv para cada modelo)
-- Ative o venv
+Pick **either**:
+
+- **Python `venv` (recommended when allowed):** lightweight, built into Python, and ideal for projects that mostly depend on Python packages. :contentReference[oaicite:0]{index=0}  
+- **Conda environment (often required on labs/clusters):** manages the Python version *and* binary dependencies (compiled libraries), and is commonly adopted in academic/HPC setups. Follow your lab’s rules if they apply (e.g., some labs require Conda). :contentReference[oaicite:1]{index=1}  
+
+If you don’t have Conda installed yet, **Miniconda** is the minimal official installer and is a common choice. :contentReference[oaicite:2]{index=2}
+
+---
+
+### 1.1 Create a Python virtual environment (`venv`)
+
+- Go to the repository folder
+- Create a `venv` (recommended: **one environment per model**)
+- Activate the environment
 - Install requirements
 
-```
+```bash
 cd 2026-ICASSP-SPGC
-mkdir venvs
+mkdir -p venvs
 cd venvs
+
 python3 -m venv venv-baseline
 source venv-baseline/bin/activate
-pip install -r requirements.txt
+
+pip install -r ../requirements.txt
 ```
 
-#### 1.2. Criando um conda environment
-```
-# caso tenha instalado conda e apareca command not found: source miniconda3/bin/activate
+### 1.2 Create a Conda environment
+# If you installed conda and get "command not found", you may need to initialize it for your shell.
+# See the official Miniconda + conda docs for setup details.
+# Example (common in some setups):
+# source ~/miniconda3/bin/activate
+
 conda create -n baseline-venv python=3.11 -y
 conda activate baseline-venv
-# verifique com:  conda info --envs
-```
+
+# (Recommended) install repo requirements after activating:
+pip install -r requirements.txt
+
+# Check environments with:
+# conda info --envs
+
+
+##############################################################3
+
 
 ### 2. Faça upload dos dados
 - Faca upload do dataset dentro da pasta `data/` 
