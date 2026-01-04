@@ -1,0 +1,169 @@
+import torch
+import wandb
+import yaml
+import os
+import argparse
+from datetime import datetime
+
+from torch.utils.data import DataLoader
+from trainer.losses import ReconLoss
+from trainer.trainer import Trainer, TrainerCfg
+from utils.tools_wandb import ToolsWandb
+
+from datasets.hyper_object import HyperObjectDataset
+# from datasets.transform import random_crop, random_flip
+from datasets.transform import (
+    random_crop,
+    random_flip,
+    random_rot90,
+    add_input_gaussian_noise,
+    spectral_jitter,
+)
+
+
+from models import setup_model
+
+from typing import Dict, Any
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-t", "--track", type=int, required=True, help="track to run")
+parser.add_argument("-d", "--data_dir", type=str, default="./data", required=False, help="path to dataset directory")
+parser.add_argument("-c", "--config", type=str, required=False, help="path of config file to use (defaults to baselines for each track)")
+
+# TODO: implement
+# parser.add_argument("--continue_from", type=str, required=False, help="checkpoint to start from")
+parser.add_argument("--use_wandb", default=False, required=False, help="log to wandb", action="store_true")
+
+args = parser.parse_args()
+
+if args.config is None:
+    if args.track == 1:
+        config_path = "config/raw2hsi_baseline.yaml"
+    elif args.track == 2:
+        config_path = "config/mst_plus_plus_up_baseline.yaml"
+    else:
+        raise ValueError(f"'{args.track}' is invalid value for track: must be 1 or 2.")
+else:
+    config_path = args.config
+
+config: Dict[str, Any]
+with open(config_path, "r") as file:
+    config = yaml.load(file, Loader=yaml.FullLoader)
+
+if "model" not in config:
+    raise ValueError("No model settings found.")
+elif "model_name" not in config["model"]:
+    raise ValueError("No model name found.")
+
+model_config = config["model"]
+train_config = config.get("train", {})
+transforms_config = config.get("transforms", {})
+
+print(f"Preparing to train model '{model_config}'...")
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+else:
+    print("WARNING: GPU not found, using CPU to train.")
+    device = torch.device("cpu")
+
+# TODO: improve transforms
+transforms = []
+if transforms_config.get("random_crop", False):
+    transforms.append(lambda batch: random_crop(batch, ps=transforms_config.get("crop_size", 320), track=args.track))
+if transforms_config.get("random_flip", False):
+    transforms.append(random_flip)
+
+###########################################
+# NEW: random 90-degree rotations
+if transforms_config.get("random_rot90", False):
+    transforms.append(random_rot90)
+
+# NEW: RGB Gaussian noise
+if transforms_config.get("rgb_gaussian_noise", False):
+    sigma = transforms_config.get("rgb_noise_sigma", 0.01)
+    transforms.append(lambda batch, s=sigma: add_input_gaussian_noise(batch, sigma=s))
+
+# NEW: HSI spectral jitter
+if transforms_config.get("spectral_jitter", False):
+    sigma = transforms_config.get("spectral_jitter_sigma", 0.02)
+    transforms.append(lambda batch, s=sigma: spectral_jitter(batch, sigma=s))
+############################################
+
+
+def transform(batch):
+    for t in transforms:
+        batch = t(batch)
+    return batch
+
+ds_train = HyperObjectDataset(
+    data_root=f"{args.data_dir}/track{args.track}",
+    track=args.track,  # 1 for mosaic, 2 for rgb_2
+    train=True,
+    transforms=transform,
+)
+
+ds_val = HyperObjectDataset(
+    data_root=f"{args.data_dir}/track{args.track}",
+    track=args.track,  # 1 for mosaic, 2 for rgb_2
+    train=False,
+)
+
+train_loader = DataLoader(
+        ds_train,
+        batch_size=train_config.get("batch_size_train", 4),
+        num_workers=train_config.get("num_workers_train", 4),
+        shuffle=True,
+        pin_memory=True
+    )
+val_loader  = DataLoader(
+        ds_val,
+        batch_size=train_config.get("batch_size_test", 4),
+        num_workers=train_config.get("num_workers_test", 4),
+        shuffle=False,
+        pin_memory=False
+    )
+
+config_name = os.path.splitext(os.path.basename(config_path))[0]
+run_name = f"{config_name}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+out_dir = f"runs/track{args.track}/{run_name}"
+cfg = TrainerCfg(
+        out_dir=out_dir,
+        epochs=train_config.get("epochs", 1000),
+        amp=train_config.get("amp", True),
+        optim=train_config.get("optim", "adamw"),
+        lr=train_config.get("lr", 2e-4),
+        weight_decay=train_config.get("weight_decay", 1e-4),
+        scheduler_type=train_config.get("scheduler","cosine"),
+        eta_min=train_config.get("eta_min", 1e-6),
+        lambda_sam=train_config.get("lambda_sam", 0.1),     
+        metrics_report_interval=train_config.get("metrics_report_interval", 5),
+    )
+
+loss_fn = ReconLoss(lambda_sam=cfg.lambda_sam)
+
+model = setup_model(model_config)
+
+run_wandb = None
+flattened_config = {}
+ToolsWandb.config_flatten(config, flattened_config)
+if args.use_wandb:
+    run_wandb = ToolsWandb.init_wandb_run(
+            f_configurations=flattened_config,
+            run_name=run_name
+            )
+
+trainer = Trainer(
+    model=model,
+    train_loader=train_loader,
+    val_loader=val_loader,
+    loss_fn=loss_fn,
+    cfg=cfg,
+    device=device,
+    wandb_run=run_wandb
+)
+
+try:
+    trainer.fit()
+except KeyboardInterrupt:
+    if run_wandb is not None:
+        run_wandb.finish()

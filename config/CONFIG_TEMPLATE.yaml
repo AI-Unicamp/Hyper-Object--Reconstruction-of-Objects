@@ -1,0 +1,61 @@
+train:
+  batch_size_train: 1  # batch size. higher users more VRAM
+  batch_size_test: 1   # batch size. higher users more VRAM
+
+  num_workers_train: 4 # num. of processes for loading data. IGNORED by train_fast.py
+  num_workers_test: 3  # num. of processes for loading data. ignored by train_fast.py
+  fast:
+    # options for train_fast.py - each input/output stream has its own loader and num_workers
+    num_workers_train_in: 2 
+    num_workers_train_out: 2 
+
+    num_workers_test_in: 2  
+    num_workers_test_out: 2  
+
+  epochs: 1000 
+  amp: True # whether to use autoscaling
+
+  optim: "adamw"       # which optimizer to use. options: ['adam', 'adamw']
+  lr: 0.0002           # learning rate
+  weight_decay: 0.0001 # weight decay for adam/adamw
+
+  scheduler: "cosine" # learning rate scheduler. options: ['cosine', 'none']
+  eta_min: 0.000001   # minimum learning rate for cosine annealing scheduler
+
+  # TODO: add option for which loss to use?
+  lambda_sam: 0.1     # coefficient for SAM in recon loss 
+
+  # how many epochs to wait before testing all metrics
+  metrics_report_interval: 5
+
+  # "reverse" training mode - for revsci only. slower but uses less memory
+  rev_mode: False # IGNORED when amp = True
+
+  # when true, draws inputs from each category based on their validation loss. forces batch_size_test=1.
+  # if you set this to True, do NOT use the default indexing, as the training will then ignore cats 2 and 4
+  balance_cats: False
+
+model:
+  model_name: "example" # model to use
+  
+  # add settings for model parameters below, e.g:
+  param1: value1
+  param2: "value2"
+
+# TODO: improve options for transforms
+transforms:
+  # whether to apply certain transforms
+  random_crop: False
+  crop_size: 320
+
+  random_flip: False
+  random_rot90: False
+
+  # applies only to input
+  rgb_gaussian_noise: False
+  rgb_noise_sigma: 0.01
+
+  # applies only to output
+  spectral_jitter: False
+  spectral_jiter_sigma: 0.02
+

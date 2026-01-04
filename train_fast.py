@@ -1,0 +1,240 @@
+import torch
+import yaml
+import os
+import argparse
+from datetime import datetime
+from shutil import copy2
+
+from torch.utils.data import DataLoader
+from trainer.losses import ReconLoss
+from trainer.trainer import TrainerCfg
+from utils.tools_wandb import ToolsWandb
+
+from datasets.partial import PartialDataset
+from datasets.det_transform import DeterministicTransforms
+
+from trainer.samplers import SimpleShuffleSampler, LossBalancedSampler
+
+from models import setup_model
+
+from typing import Dict, Any
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-t", "--track", type=int, required=False, help="track to run")
+parser.add_argument("-d", "--data_dir", type=str, default="./data", required=False, help="path to dataset directory")
+parser.add_argument("-c", "--config", type=str, required=False, help="path of config file to use (defaults to baselines for each track)")
+parser.add_argument("-i", "--data_in", type=str, required=False, help="dataset to use for input loader (e.g. rgb_2, mosaic, etc.)")
+parser.add_argument("-o", "--data_out", type=str, default="hsi_61_zarr", required=False, help="dataset to use for output loader (e.g. hsi_61, hsi_61_zarr, etc.)")
+parser.add_argument("-s", "--seed", type=str, required=False, help="seed for transform/shuffler RNG")
+parser.add_argument("--index", type=str, default="config/indexing/default.txt", required=False, help="path to index of IDs to use for testing")
+
+# TODO: implement
+# parser.add_argument("--continue_from", type=str, required=False, help="checkpoint to start from")
+parser.add_argument("--use_wandb", default=False, required=False, help="log to wandb", action="store_true")
+
+args = parser.parse_args()
+
+if args.config is None:
+    if args.track == 1:
+        config_path = "config/raw2hsi_baseline.yaml"
+    elif args.track == 2:
+        config_path = "config/mst_plus_plus_up_baseline.yaml"
+    else:
+        raise ValueError(f"'{args.track}' is invalid value for track: must be 1 or 2.")
+else:
+    config_path = args.config
+
+config: Dict[str, Any]
+with open(config_path, "r") as file:
+    config = yaml.load(file, Loader=yaml.FullLoader)
+
+if "model" not in config:
+    raise ValueError("No model settings found.")
+elif "model_name" not in config["model"]:
+    raise ValueError("No model name found.")
+
+model_config = config["model"]
+train_config = config.get("train", {})
+transforms_config = config.get("transforms", {})
+
+print(f"Preparing to train model '{model_config}'...")
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+else:
+    print("WARNING: GPU not found, using CPU to train.")
+    device = torch.device("cpu")
+
+if args.seed is not None:
+    rng_seed = args.seed
+else:
+    rng_seed = int(datetime.now().timestamp())
+
+transforms_in = DeterministicTransforms(track=args.track,
+                                        is_out=False,
+                                        base_seed=rng_seed,
+                                        old_mode=model_config.get("old_mode", False))
+transforms_out = DeterministicTransforms(track=args.track,
+                                         is_out=True,
+                                         base_seed=rng_seed,
+                                         old_mode=model_config.get("old_mode", False))
+if transforms_config.get("random_crop", False):
+    transforms_in.add_transform("random_crop", ps=transforms_config.get("crop_size", 320))
+    transforms_out.add_transform("random_crop", ps=transforms_config.get("crop_size", 320))
+if transforms_config.get("random_flip", False):
+    transforms_in.add_transform("random_flip")
+    transforms_out.add_transform("random_flip")
+if transforms_config.get("random_rot90", False):
+    transforms_in.add_transform("random_rot90")
+    transforms_out.add_transform("random_rot90")
+if transforms_config.get("rgb_gaussian_noise", False):
+    transforms_in.add_transform("rgb_gaussian_noise", sigma=transforms_config.get("rgb_noise_sigma", 0.01))
+if transforms_config.get("spectral_jitter", False):
+    transforms_out.add_transform("spectral_jitter", sigma=transforms_config.get("spectral_jitter_sigma", 0.02))
+
+if args.data_in is not None:
+    img_type_in = args.data_in
+elif args.track is not None:
+    img_type_in = "mosaic" if args.track==1 else "rgb_2"
+else:
+    raise ValueError("Must use at least one of the flags '--track' or '--data_in'.")
+
+img_type_out = args.data_out
+
+with open(args.index, "r") as f:
+    test_ids = [line.rstrip() for line in f]
+
+ds_train_in = PartialDataset(
+    data_root=f"{args.data_dir}",
+    exclude=test_ids,
+    img_type=img_type_in,
+    transforms=transforms_in,
+    old_mode=model_config.get("old_mode", False)
+)
+
+ds_train_out = PartialDataset(
+    data_root=f"{args.data_dir}",
+    exclude=test_ids,
+    img_type=img_type_out,
+    transforms=transforms_out,
+    old_mode=model_config.get("old_mode", False)
+)
+
+train_ids = ds_train_in.get_ids()
+
+ds_val_in = PartialDataset(
+    data_root=f"{args.data_dir}",
+    exclude=train_ids,
+    img_type=img_type_in,
+    old_mode=model_config.get("old_mode", False)
+)
+
+ds_val_out = PartialDataset(
+    data_root=f"{args.data_dir}",
+    exclude=train_ids,
+    img_type=img_type_out,
+    old_mode=model_config.get("old_mode", False)
+)
+
+if train_config.get("balance_cats", False):
+    shared_sampler = LossBalancedSampler(ds_train_in.get_ids())
+else:
+    shared_sampler = SimpleShuffleSampler(len(ds_train_in), base_seed=rng_seed)
+
+train_loader_in = DataLoader(
+        ds_train_in,
+        batch_size=train_config.get("batch_size_train", 4),
+        num_workers=train_config["fast"].get("num_workers_train_in", 4),
+        shuffle=False,
+        sampler=shared_sampler,
+        pin_memory=True,
+        persistent_workers=True
+    )
+
+train_loader_out = DataLoader(
+        ds_train_out,
+        batch_size=train_config.get("batch_size_train", 4),
+        num_workers=train_config["fast"].get("num_workers_train_out", 4),
+        shuffle=False,
+        sampler=shared_sampler,
+        pin_memory=True,
+        persistent_workers=True
+    )
+
+if train_config.get("balance_cats", False):
+    batch_size_test = 1
+else:
+    batch_size_test = train_config.get("batch_size_test", 4)
+
+val_loader_in  = DataLoader(
+        ds_val_in,
+        batch_size=batch_size_test,
+        num_workers=train_config["fast"].get("num_workers_test_in", 4),
+        shuffle=False,
+        pin_memory=True,
+        persistent_workers=True,
+    )
+
+val_loader_out  = DataLoader(
+        ds_val_out,
+        batch_size=batch_size_test,
+        num_workers=train_config["fast"].get("num_workers_test_out", 4),
+        shuffle=False,
+        pin_memory=True,
+        persistent_workers=True,
+    )
+
+config_name = os.path.splitext(os.path.basename(config_path))[0]
+run_name = f"{config_name}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+out_dir = f"runs/track{args.track}/{run_name}"
+
+os.makedirs(out_dir)
+
+# save the config that was used
+copy2(config_path, f"{out_dir}/config.yaml")
+
+cfg = TrainerCfg(
+        out_dir=out_dir,
+        epochs=train_config.get("epochs", 1000),
+        amp=train_config.get("amp", True),
+        optim=train_config.get("optim", "adamw"),
+        lr=train_config.get("lr", 2e-4),
+        weight_decay=train_config.get("weight_decay", 1e-4),
+        scheduler_type=train_config.get("scheduler","cosine"),
+        eta_min=train_config.get("eta_min", 1e-6),
+        lambda_sam=train_config.get("lambda_sam", 0.1),     
+        metrics_report_interval=train_config.get("metrics_report_interval", 5),
+        rev_mode=train_config.get("rev_mode", False),
+        balance_cats=train_config.get("balance_cats", False)
+    )
+
+loss_fn = ReconLoss(lambda_sam=cfg.lambda_sam)
+
+model = setup_model(model_config)
+
+run_wandb = None
+flattened_config = {}
+ToolsWandb.config_flatten(config, flattened_config)
+if args.use_wandb:
+    run_wandb = ToolsWandb.init_wandb_run(
+            f_configurations=flattened_config,
+            run_name=run_name
+            )
+
+from trainer.fast_trainer import FastTrainer
+trainer = FastTrainer(
+    model=model,
+    train_loader_in=train_loader_in,
+    train_loader_out=train_loader_out,
+    val_loader_in=val_loader_in,
+    val_loader_out=val_loader_out,
+    loss_fn=loss_fn,
+    cfg=cfg,
+    device=device,
+    wandb_run=run_wandb
+)
+
+try:
+    trainer.fit()
+except KeyboardInterrupt:
+    if run_wandb is not None:
+        run_wandb.finish()
