@@ -227,70 +227,71 @@ To validate a trained model, provide the configuration that was used for trainin
 #### Faster evaluation
 Similarly to `train_fast.py`, there is also `evaluate_fast.py`, which enables evaluation for alternative training pipelines such as TRevSCI.
 
-```python evaluate_fast.py --track TRACK --config PATH_TO_CONFIG --model path/to/model.tar```
-Modelos treinados com o `train_fast.py` também salvam a sua configuração com o modelo, então `--config` pode ser omitido. Por ex:
-```
-python evaluate_fast.py --track TRACK --model runs/track1/blahblah/
-```
+> ```bash
+> python evaluate_fast.py --track TRACK --config PATH_TO_CONFIG --model path/to/model.tar
+> ```
 
-### 4. Gerando predições para test-private
-```
-python submission.py --track TRACK --config PATH_TO_CONFIG --model path/to/model.tar
-```
-Pode-se alterar a pasta de destino da submissão com a flag `-o OUT_DIR`. Por padrão ela vai na pasta `submission_files`.
+Models trained with `train_fast.py` also save their configuration together with the model, so `--config` can be omitted. For example:
+> ```bash
+> python evaluate_fast.py --track TRACK --model runs/track1/blahblah/
+> ```
 
-**OBS:** Modelos treinados com os scripts antigos não serão compatíveis com os scripts acima.
-Se quiser rodar um modelo treinado com o script antigo, precisa fazer a seguinte alteração no script de submissão:
+### 4. Generating predictions for `test-private`
+> ```bash
+> python submission.py --track TRACK --config PATH_TO_CONFIG --model path/to/model.tar
+> ```
+
+You can change the output directory for the submission files with the `-o OUT_DIR` flag. By default, outputs are written to the `submission_files` folder.
+
+**NOTE:** Models trained with the legacy/old scripts will not be compatible with the scripts above.
+If you want to run a model trained with the old script, you need to apply the following change in the submission script:
+
 ```diff
 -  model.load_state_dict(checkpoint["model"])
 +  model.load_state_dict(checkpoint)
 ```
 
-#### (Optional) 4.1. Predição acelerada
-Para usar modelos com a pipeline TRevSCI->MST++, é preciso usar o script `submission_fast.py`. A lógica é a mesma do
-`evaluate_fast.py`.
+#### (Optional) 4.1. Faster prediction
+To use models with the TRevSCI->MST++ pipeline, you must use the `submission_fast.py` script. The logic is the same as in `evaluate_fast.py`.
 
-### 5. Adicionar um modelo
-Para adicionar um novo modelo:
-1. Implemente o modelo na pasta `models/`, como em `example.py`.
-2. Adicione uma configuração para o modelo em `configs/`, a partir do arquivo `CONFIG_TEMPLATE.yaml`.
-3. Em `models/__init__.py`, altere a função `setup_model` para incluir o setup do modelo, a partir do exemplo no arquivo.
+### 5. Adding a model
+To add a new model?
+1. Implement the model inside `models/`, following `example.py`.
+2. Add a configuration for the model in `configs/`, starting from `CONFIG_TEMPLATE.yaml`.
+3. In `models/__init__.py`, update the `setup_model` function to include the model setup, following the example in the file.
 
 ### 6. Weights & Biases
-Para salvar os dados de treino para o wandb, primeiro é necessário fazer o login com:
-```
-wandb login
-```
-e usar a sua chave de API. Em seguida, adicione a flag `--use_wandb` quando for treinar, por exemplo:
-```
-python train.py --track TRACK --config PATH_TO_CONFIG --use_wandb
-```
+To log training runs to Weights & Biases (wandb), first log in with:
+> ```bash
+> wandb login
+> ```
+
+and paste you API key. Then add the `--use_wandb` flag when training, for example:
+> ```bash
+> python train.py --track TRACK --config PATH_TO_CONFIG --use_wandb
+> ```
 
 ### Extras
-#### A. Para testar se a GPU está sendo corretamente acessada:
-    - digite python no terminal
-    - import torch
-    - veja por algum desses comandos:
-        - torch.cuda.is_available(): Returns True if a CUDA-enabled GPU is available and PyTorch can utilize it, otherwise False.
-        - torch.cuda.device_count(): Returns the number of available GPUs.
-        - torch.cuda.current_device(): Returns the index of the currently selected GPU.
-        - torch.cuda.get_device_name(device_id): Returns the name of the GPU specified by device_id.
-        - torch.cuda.get_device_properties(device_id): Returns properties of the specified GPU, such as memory and compute capability.
-    - dê exit() para voltar ao shell.
-#### B. Lembre-se de atualizar o arquivo requirements.txt caso você tenha que instalar mais alguma coisa (via pip)
-#### C. Configurando git
-        git config --global user.name "Your Name"
-        git config --global user.email "your.email@example.com"
 
-### Referência (grosseira) para as métricas:
-- SSC_arith (0–1, ↑): ≥ 0.80 bom, ≥ 0.90 ótimo
-- SSC_geom (0–1, ↑): ≥ 0.78 bom, ≥ 0.88 ótimo
-- SAM_deg (°, ↓): ângulo espectral (<5° bom, <2° ótimo)
-- SID (≥0, ↓): divergência espectral (<0.01 bom)
-- ERGAS (↓): erro relativo global (<4 bom, <2 ótimo)
-- PSNR_dB (↑): qualidade de imagem (>35 dB bom, >40 ótimo)
-- SSIM (0–1, ↑): estrutura da imagem (>0.9 bom, >0.95 ótimo)
-- DeltaE00 (↓): diferença de cor perceptual (<3 bom, <1 ótimo)
+#### A. Testing whether the GPU is being accessed correctly
 
+- Type `python` in your terminal
+- Run:
+  - `import torch`
+- Then check GPU availability with one of the commands below:
+  - `torch.cuda.is_available()` — returns `True` if a CUDA-capable GPU is available and PyTorch can use it; otherwise `False`.
+  - `torch.cuda.device_count()` — returns the number of available GPUs.
+  - `torch.cuda.current_device()` — returns the index of the currently selected GPU.
+  - `torch.cuda.get_device_name(device_id)` — returns the name of the GPU specified by `device_id`.
+  - `torch.cuda.get_device_properties(device_id)` — returns properties of the specified GPU (e.g., memory, compute capability).
+- Type `exit()` to return to the shell.
 
-ADICIONAR COLOCAÇÃO (RANKING) - IMAGEM
+#### B. Keep `requirements.txt` up to date
+
+Remember to update `requirements.txt` if you install additional Python packages (via `pip`).
+
+#### C. Configuring Git
+
+```bash
+git config --global user.name "Your Name"
+git config --global user.email "your.email@example.com"
