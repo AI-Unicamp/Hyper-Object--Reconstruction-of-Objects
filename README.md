@@ -37,17 +37,17 @@ You should create **one isolated environment per model/experiment** to avoid dep
 
 Pick either:
 
-- **Python `venv`:** (official docs: https://docs.python.org/3/library/venv.html). Lightweight and built into Python. Best when you only need Python packages and you already have a suitable Python version installed.
-- **Conda environment:** (official docs: https://docs.conda.io/). Manages the Python version and binary dependencies (compiled libraries), and is commonly adopted in academic/HPC setups. Follow your lab’s rules if they apply (e.g., some labs require Conda).
+- [**Python venv:**](https://docs.python.org/3/library/venv.html) Lightweight and built into Python. Best when you only need Python packages and you already have a suitable Python version installed.
+- [**Conda environment:**](https://docs.conda.io/) Manages the Python version and binary dependencies (compiled libraries), and is commonly adopted in academic/HPC setups. Follow your lab’s rules if they apply (e.g., some labs require Conda).
 
-If you don’t have Conda installed yet, **Miniconda** is the minimal official installer and is a common choice: https://docs.conda.io/projects/miniconda/en/latest/.
+If you don’t have Conda installed yet, [**Miniconda**](https://docs.conda.io/projects/miniconda/en/latest/) is the minimal official installer and is a common choice.
 
 Steps:
 1. Create a environment (venv or conda) (recommended: one environment per model)
 2. Activate the environment
 3. Install the requirements
 
-#### 1.1.1. Option 1: Create a Python virtual environment (`venv`)
+#### 1.1.1. Option 1: Create a Python virtual environment (venv)
 > Commands below assume macOS/Linux.
 
 > ```bash
@@ -67,18 +67,13 @@ Steps:
 > conda activate baseline-env
 > ```
 
-If you installed conda but you get "command not found", you may need to initialize it for your shell (see Conda docs: https://docs.conda.io/). Example (common in some setups):
+If you installed conda but you get "command not found", you may need to initialize it for your shell (see [Conda docs](https://docs.conda.io/)). Example (common in some setups):
 > ```bash
 > # manually activate conda (path may differ)
 > source ~/miniconda3/bin/activate
 > ```
 
-### 1.2. Install repo requirements (after activating the environment):
-> ```bash
-> pip install -r requirements.txt
-> ```
-
-### 1.3. Quick checks (optional)
+### 1.1.3. Quick checks (optional)
 > ```bash
 > # Show which Python you're using
 > which python
@@ -90,12 +85,12 @@ If you installed conda but you get "command not found", you may need to initiali
 ##############################################################3
 
 
-### 2. Faça upload dos dados
-- Faca upload do dataset dentro da pasta `data/` 
-- Coloque os dados da track 1/2 dentro de pastas dentro dessa, chamadas `track1` e `track2`
-- Mude o nome da pasta publica de teste do track 2 de `public-test` para `test-public`
+### 1.2. Upload the data
+- Upload the dataset into the `data/` folder.
+- Put the Track 1/2 data inside subfolders named `track1` and `track2`.
+- Rename the Track 2 public test folder from `public-test` to `test-public`.
 
-Portanto, a estrutura do diretório será (representadas somente as pastas acima):
+Therefore, the directory structure will be (only the folders above are shown):
 
 ```
 2026-ICASSP-SPGC
@@ -122,58 +117,57 @@ Portanto, a estrutura do diretório será (representadas somente as pastas acima
         |-- venv-baseline
 ```
 
-**OBS:** Pode utilizar uma pasta diferente de `data` para armazenar os dados, basta passar `-d DATA_DIR` nos scripts,
-onde `DATA_DIR` é a pasta onde estão os dados. A pasta ainda deve seguir a estrutura acima, contudo.
+**NOTE:** You may use a different folder than `data` to store the data; just pass `-d DATA_DIR` to the scripts, where `DATA_DIR` is the folder containing the data. The folder must still follow the structure above.
 
-#### Dados extras
-Gerei algums "sub-datasets" a mais que podem ser necessários:
+#### Extra data
 
-* `hsi_61_zarr`: São os dados das imagens hiperspectrais comprimidos em um formato que acelera a leitura em HDs.
-O `train` está disponível [aqui](https://drive.google.com/file/d/1VUhh06-X8rkoGVT9kgp1SkCEzK5VDNue/view?usp=sharing)
-e o `test-public` está disponível [aqui](https://drive.google.com/file/d/1mYDPvYhqCs1fbDjPfItGDOuyOWf1_nvF/view?usp=sharing).
-* `rgb_full`: Renderizações em RGB das imagens a partir das imagens de 61 bandas. São usadas no pré-treino do TRevSCI. O `train`
-está disponível [aqui](https://drive.google.com/file/d/15G-PIgDrjGClxsio5a-r68x0KlFBDsoL/view?usp=sharing) e o `test-public`
-está disponível [aqui](https://drive.google.com/file/d/1A2xJ9eBADNx5hFru3gjNkqdws34Cp-Bp/view?usp=sharing).
+Some additional “sub-datasets” were generated and may be required:
 
-Os "sub-datasets" são os mesmos para ambas as tracks. Se estiver usando Linux/Mac, não precisa baixar duas vezes, basta fazer symlinks.
-Por exemplo, se você estiver todos os datasets no track2, basta navegar para a pasta `data/track1/train/` e rodar:
+- `hsi_61_zarr`: Hyperspectral images compressed in a format that speeds up reading on HDDs.
+The `train` split is available [here](https://drive.google.com/file/d/1VUhh06-X8rkoGVT9kgp1SkCEzK5VDNue/view?usp=sharing), and the `test-public` split is available [here](https://drive.google.com/file/d/1mYDPvYhqCs1fbDjPfItGDOuyOWf1_nvF/view?usp=sharing).
+- `rgb_full`: RGB renderings generated from the 61-band images. These are used for TRevSCI pre-training. The `train` split is available [here](https://drive.google.com/file/d/15G-PIgDrjGClxsio5a-r68x0KlFBDsoL/view?usp=sharing) and the `test-public` split is available [here](https://drive.google.com/file/d/1A2xJ9eBADNx5hFru3gjNkqdws34Cp-Bp/view?usp=sharing).
+
+The “sub-datasets” are the same for both tracks. If you are using Linux/Mac, you don’t need to download them twice—just create symlinks.
+For example, if you have all datasets under Track 2, simply navigate to `data/track1/train/` and run:
+
 ```
 ln -s ../../track2/train/hsi_61 .
 ln -s ../../track2/train/hsi_61_zarr .
 ln -s ../../track2/train/rgb_full .
 ```
-Igualmente, para o `test-public`, navegue para `data/track1/test-public` e rode:
+
+Similarly, for `test-public`, navigate to `data/track1/test-public` and run:
 ```
 ln -s ../../track2/test-public/hsi_61 .
 ln -s ../../track2/test-public/hsi_61_zarr .
 ln -s ../../track2/test-public/rgb_full .
 ```
-Assim, a estrutura para cada track será:
+Then, the structure for each track will be:
 ```
-|-- track{1 ou 2}/
+|-- track{1 or 2}/
     |-- train/
-        |-- {mosaic ou rgb_2}/
+        |-- {mosaic or rgb_2}/
         |-- rgb_full/
         |-- hsi_61/
         |-- hsi_61_zarr/
     |-- test-public/
-        |-- {mosaic ou rgb_2}/
+        |-- {mosaic or rgb_2}/
         |-- hsi_61/
         |-- rgb_full/
         |-- hsi_61/
         |-- hsi_61_zarr/
     |-- test-private/
-        |-- {mosaic ou rgb_2}/
+        |-- {mosaic or rgb_2}/
 ```
 
-### 3. Instalando requirements e rodando
+### 1.3. Install repo requirements (after activating the environment)
 #### Instalando requirements
 Entre na pasta onde está o arquivo requirements.txt e execute:
-```
-pip install requirements -r requirements.txt
-```
+> ```bash
+> pip install -r requirements.txt
+> ```
 
-### 4. Treinando os modelos
+### 2. Treinando os modelos
 ```
 python train.py --track TRACK --config PATH_TO_CONFIG
 ```
