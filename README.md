@@ -410,9 +410,7 @@ SMOTE does **not** use `--index` to decide what to generate. You still generate 
 
 The leakage risk comes *after* SMOTE: each synthetic sample is created from **two real samples** (`id1` and `id2`). Therefore, when choosing an evaluation subset, you must ensure that **no evaluation sample appears as a source (`id1` or `id2`) for any synthetic sample used in training**. In practice, this means you must check the SMOTE plan (and you can also check the filenames of the generated synthetic samples themselves, since they include `id1` and `id2`) and pick evaluation IDs that are not used by the training synthetic pairs.
 
-To reproduce the SMOTE experiments in this repo without leakage, use the SMOTE-specific index file:
-
-- `config/indexing/alt_smote.txt`
+To reproduce the SMOTE experiments in this repo without leakage, use the SMOTE-specific index file: `config/indexing/alt_smote.txt`
 
 This file was prepared to match the default SMOTE plan seed (`random_state=42`). If you change the seed (or regenerate the SMOTE plan / dataset), you should regenerate/update the index file as well.
 
@@ -460,16 +458,93 @@ This will train using the augmented dataset under ```path/to/data_da```, and use
 
 ---
 
-### 7. Weights & Biases
-To log training runs to Weights & Biases (wandb), first log in with:
+### 7. Weights & Biases (W&B) — experiment logging (optional)
+
+This repo supports optional logging to Weights & Biases (wandb) to make runs easier to track, compare, and reproduce.
+
+**What is W&B?**  
+[Weights & Biases](https://wandb.ai/site/) (wandb) is a platform + Python library to **track and visualize ML experiments** (metrics, hyperparameters/configs, system stats), making runs easier to compare, reproduce, and share.
+
+**Where is W&B configured in this repo?**  
+The W&B initialization helper is in `utils/tools_wandb.py`:
+https://github.com/AI-Unicamp/Hyper-Object--Reconstruction-of-Objects/blob/main/utils/tools_wandb.py
+
+
+**Before you start (account, project, API key):**
+1. Create a free W&B account: https://wandb.ai/site/
+2. Create a W&B project (recommended). You can also skip this step: W&B will create a project automatically the first time you run with a given project name.  
+3. Get your API key (needed to log runs): https://wandb.ai/authorize  
+   More info: W&B Quickstart https://docs.wandb.ai/models/quickstart
+
+#### 7.1 Install wandb
+If you installed this repo with `requirements.txt`, you may already have it. If not:
+
+> ```bash
+> pip install wandb
+> ```
+
+#### 7.2. Login (one-time)
+Run:
+
 > ```bash
 > wandb login
 > ```
 
-and paste you API key. Then add the `--use_wandb` flag when training, for example:
-> ```bash
-> python train.py --track TRACK --config PATH_TO_CONFIG --use_wandb
-> ```
+Paste your API key when prompted. (CLI details: https://docs.wandb.ai/models/ref/cli/wandb-login
+)
+
+
+#### 7.3 Choose where runs will be stored (project + entity)
+
+W&B organizes runs under **entity / project**:
+- **Entity**: your W&B username or a team (workspace).
+- **Project**: a folder-like container that groups related runs (e.g., “hyperobject-track2”).
+
+To avoid editing code, this repo reads these values from environment variables:
+- `WANDB_ENTITY` (username or team)
+- `WANDB_PROJECT` (project name)
+
+**Option A (recommended): set env vars**
+This is the easiest way to keep your runs organized and reproducible across machines.
+
+Linux/macOS (bash):
+```bash
+export WANDB_ENTITY="your_username_or_team"
+export WANDB_PROJECT="your_project_name"
+```
+
+Windows (PowerShell):
+```powershell
+setx WANDB_ENTITY "your_username_or_team"
+setx WANDB_PROJECT "your_project_name"
+```
+
+**Option B: let W&B use defaults**
+
+If you don’t set these, W&B will still log runs, but they may end up under default locations/names depending on your account settings and local directory.
+
+#### 7.4. Run training with W&B enabled
+- Step 1: Make sure you are logged in (```wandb login```) and (recommended) set WANDB_ENTITY / WANDB_PROJECT.
+
+- Step 2: Add --use_wandb when training:
+  
+```bash
+python train.py --track TRACK --config PATH_TO_CONFIG --use_wandb
+```
+
+#### 7.5. Disable W&B or run offline
+- Disable logging completely: simply omit the flag:
+```bash
+python train.py --track TRACK --config PATH_TO_CONFIG
+```
+- Disable W&B even if the flag is accidentally enabled: set:
+```bash
+export WANDB_MODE="disabled"
+```
+- Offline training (no internet): you can save runs locally and sync later by setting:
+```bash
+export WANDB_MODE="offline"
+```
 
 ### Extras
 
