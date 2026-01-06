@@ -270,9 +270,9 @@ To add a new model:
 ### 6. Generating synthetic data via SMOTE
 This repo includes a **SMOTE-like** generator for Track 2 that creates **new (RGB, HSI)** pairs by **linear interpolation** between two real samples **from the same class**:
 
-\[
+$$
 x_{\text{syn}} = x_1 + \lambda (x_2 - x_1), \quad \lambda \sim U(0,1)
-\]
+$$
 
 It works on **both modalities** (HSI cube + RGB image) and saves the synthetic pair to disk.
 
