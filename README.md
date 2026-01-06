@@ -116,7 +116,7 @@ Therefore, the directory structure will be (only the folders above are shown):
 
 **NOTE:** You may use a different folder than `data` to store the data; just pass `-d DATA_DIR` to the scripts, where `DATA_DIR` is the folder containing the data. The folder must still follow the structure above.
 
-#### Extra data
+#### 1.2.1. (Optional) Extra data
 
 Some additional “sub-datasets” were generated and may be required:
 
