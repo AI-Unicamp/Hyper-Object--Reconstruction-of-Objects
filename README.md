@@ -59,6 +59,8 @@ Steps:
 > source venvs/baseline-env/bin/activate
 > ```
 
+Note: these activation commands assume a Bash-compatible shell. If you’re using a different shell (e.g., zsh, fish, PowerShell), use the appropriate activation command from [the official venv documentation](https://docs.python.org/3/library/venv.html#how-venvs-work).
+
 #### 1.1.2. Option 2: Create a Conda environment
 
 > ```bash
