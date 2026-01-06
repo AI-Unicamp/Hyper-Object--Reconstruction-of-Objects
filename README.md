@@ -225,7 +225,7 @@ For example, `--index config/indexing/alt.txt` points to an index of 12 images (
 
 To validate a trained model, provide the configuration that was used for training and the saved checkpoint.
 
-#### Faster evaluation
+#### 3.1. (Optional) Faster evaluation
 Similarly to `train_fast.py`, there is also `evaluate_fast.py`, which enables evaluation for alternative training pipelines such as TRevSCI.
 
 > ```bash
