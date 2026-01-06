@@ -389,8 +389,74 @@ generate_next_synthetic_from_plan(
 - Fixed (reproducible): which pairs are used `id1`, `id2`), because `smote_plan.csv` is built with `random_state=42`.
 - Not fixed by default:  the interpolation factor $\lambda$ is sampled at generation time. So if you rerun generation without saving $\lambda$, the same `(id1, id2)` can produce slightly different synthetic samples. If you need strict determinism for the synthetic pixels, extend the plan to also store a `lambda` column and reuse it during generation.
 
+
 #### 6.7. Required index file for SMOTE experiments
-To reproduce the exact SMOTE experiments in this repo, you must use the SMOTE-specific index file: `/config/indexing/alt_smote.txt`. This index is aligned with the default seed (`random_state=42`) used when building the SMOTE plan. If you change the seed (or rebuild the plan with a different dataset ordering), you must regenerate/update the index accordingly.
+
+**How `--index` works (and why it prevents leakage):**  
+When training a model, we usually split the data into two roles:
+
+- **Training set:** the model *learns* from these samples.
+- **Evaluation/validation set (e.g., `test-public`):** the model is *checked* on these samples, but it must **not learn from them**.
+
+If we accidentally evaluate on samples that also appear in training, we get **data leakage**: the model is being tested on something it has already seen during learning.
+
+With `train_fast.py`, the flag `--index PATH_TO_TXT` lets you explicitly define **which sample IDs are reserved for evaluation** (i.e., which samples will be used to validate the model). Think of it as a “reserved-for-evaluation” list.
+
+- The index file is a plain `.txt` file.
+- It contains **one sample ID per line** (matching the dataset filenames, usually without extension).
+
+**Why this matters for SMOTE experiments:**  
+SMOTE does **not** use `--index` to decide what to generate. You still generate synthetic samples normally.
+
+The leakage risk comes *after* SMOTE: each synthetic sample is created from **two real samples** (`id1` and `id2`). Therefore, when choosing an evaluation subset, you must ensure that **no evaluation sample appears as a source (`id1` or `id2`) for any synthetic sample used in training**. In practice, this means you must check the SMOTE plan (and you can also check the filenames of the generated synthetic samples themselves, since they include `id1` and `id2`) and pick evaluation IDs that are not used by the training synthetic pairs.
+
+To reproduce the SMOTE experiments in this repo without leakage, use the SMOTE-specific index file:
+
+- `config/indexing/alt_smote.txt`
+
+This file was prepared to match the default SMOTE plan seed (`random_state=42`). If you change the seed (or regenerate the SMOTE plan / dataset), you should regenerate/update the index file as well.
+
+
+#### 6.8. Training with the SMOTE-augmented dataset
+
+##### Step 1 — Create a “full” augmented dataset folder (original + synthetic)
+
+After generating the SMOTE samples, you will have something like:
+
+- original dataset (example): `path/to/data/track2/`
+- synthetic outputs (from the notebook): `path/to/DataAugmentation/`
+
+To train normally, it is recommended to create a **new dataset folder** that contains **all samples** (original + synthetic) organized in the same folder structure expected by the training scripts. In this tutorial, we call this folder data_da (short for data data augmentation). For example:
+
+```
+path/to/data_da/track2/train/rgb_2/
+path/to/data_da/track2/train/hsi_61/
+path/to/data_da/track2/test-public/rgb_2/
+path/to/data_da/track2/test-public/hsi_61/
+```
+
+Where each folder contains both the original files and the synthetic ones (same naming conventions).
+
+##### Step 2 — Reference the augmented dataset with `-d`, `-i`, and `-o`
+
+When training with `train_fast.py`, point to your new augmented dataset root with `-d`, and explicitly set the input/output datasets:
+
+- `-i rgb_2` (input)
+- `-o hsi_61` (target)
+
+##### Example command (Track 2 + augmented dataset + custom index)
+
+```bash
+python train_fast.py \
+  --track 2 \
+  --config path/to/config_da.yaml \
+  -d path/to/data_da \
+  -i rgb_2 \
+  -o hsi_61 \
+  --index path/to/2026-ICASSP-SPGC/config/indexing/alt_smote.txt
+```
+
+This will train using the augmented dataset under ```path/to/data_da```, and use the IDs listed in alt_smote.txt as the evaluation subset.
 
 ---
 
