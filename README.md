@@ -2,6 +2,10 @@
 
 We present a reproducible experimental framework for the ICASSP 2026 Hyperobject Challenge (Track 2), focusing on baseline engineering rather than architectural changes. Using the official organizer-provided baseline as a fixed reference, we standardize data handling, training and evaluation control, and experiment configuration to enable reliable comparison and rapid ablation. Our framework includes reproducible workflows, category-aware sampling, and practical I/O optimizations. Without modifying the baseline architecture, we achieve competitive performance (0.57146/SSC on the test-private split).
 
+> Leaderboard snapshot (team: RainbowAI, test-private SSC = 0.57146):
+
+![Leaderboard snapshot](assets/leaderboard.png)
+
 > Hyperobject Challenge official repository: https://github.com/hyper-object/2026-ICASSP-SPGC
 
 This repository contains:
