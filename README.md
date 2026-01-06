@@ -123,7 +123,7 @@ Some additional “sub-datasets” were generated and may be required:
 - `hsi_61_zarr`: Hyperspectral images compressed in a format that speeds up reading on HDDs.
 The `train` split is available [here](https://drive.google.com/file/d/1VUhh06-X8rkoGVT9kgp1SkCEzK5VDNue/view?usp=sharing), and the `test-public` split is available [here](https://drive.google.com/file/d/1mYDPvYhqCs1fbDjPfItGDOuyOWf1_nvF/view?usp=sharing).
 Alternatively, it is possible to generate the compressed files locally with the `zarr_convert.py` script found in `util-scripts`, as such:
-```
+```bash
 python util-scripts/zarr_convert.py HSI_61_DIR -o OUT_DIR
 ```
 - `rgb_full`: RGB renderings generated from the 61-band images. These are used for TRevSCI pre-training. The `train` split is available [here](https://drive.google.com/file/d/15G-PIgDrjGClxsio5a-r68x0KlFBDsoL/view?usp=sharing) and the `test-public` split is available [here](https://drive.google.com/file/d/1A2xJ9eBADNx5hFru3gjNkqdws34Cp-Bp/view?usp=sharing).
@@ -228,7 +228,7 @@ Similarly to `train_fast.py`, there is also `evaluate_fast.py`, which enables ev
 
 Models trained with `train_fast.py` also save their configuration together with the model, so `--config` can be omitted. For example:
 > ```bash
-> python evaluate_fast.py --track TRACK --model runs/track1/blahblah/
+> python evaluate_fast.py --track TRACK --model runs/track2/MODEL_DIR/model_best.tar
 > ```
 
 #### 3.1. Legacy evaluation
