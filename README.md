@@ -171,31 +171,14 @@ Go to the folder where the `requirements.txt` file is located and run:
 
 
 ### 2. Training the models
-
-To train a model, run:
-
-> ```bash
-> python train.py --track TRACK --config PATH_TO_CONFIG
-> ```
-
-Where `TRACK` should be replaced with the track you want to use (2 for Track 2, 1 for Track 1) and `PATH_TO_CONFIG` is a configuration file path.
-
-If no configuration is provided, the script will use the default baseline. For example, to train the Track 2 baseline, simply run:
-
-> ```bash
-> python train.py --track 2
-> ```
-
-- If you run into CUDA out-of-memory (OOM) issues, it may help to set: `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`
-
-#### 2.1. (Optional) Faster training
-The `train_fast.py` enables faster training by loading inputs (light) and outputs (heavy) separately, and it also supports additional training schemes (for example, TRevSCI training requires this script).
+The `train_fast.py` script enables faster training by loading inputs (light) and outputs (heavy) separately, and it also supports additional training schemes (for example, TRevSCI training requires this script).
 
 Run:
 
 > ```bash
 > python train_fast.py --track TRACK --config PATH_TO_CONFIG
 > ```
+Where `TRACK` should be replaced with the track you want to use (2 for Track 2, 1 for Track 1) and `PATH_TO_CONFIG` is a configuration file path.
 
 By default, it will automatically:
 - Use `rgb_2`as the input for Track 2 (and `mosaic` for Track 1).
@@ -212,23 +195,32 @@ For example, to train MST++ using `rgb_full` as input and predict `hsi_61`:
 > python train_fast.py --config PATH_TO_CONFIG -i rgb_full -o hsi_61
 > ```
 
+If no configuration is provided, the script will use the default baseline. For example, to train the Track 2 baseline, simply run:
+
+> ```bash
+> python train_fast.py --track 2
+> ```
+
 You can also use `-s SEED` to make training runs reproducible (i.e., deterministic shuffles and transforms).
 
-#### 2.2. (Optional) Alternative indexing for test data
+#### 2.1. (Optional) Alternative indexing for test data
 With `train_fast.py`, you can specify an index file using `--index` listing the sample IDs to be used as the test dataset.
 For example, `--index config/indexing/alt.txt` points to an index of 12 images (4 from each category).
+
+#### 2.2. Legacy training
+`train.py` lacks a lot of features available to `train_fast.py`, but is still usable, and will automatically point to .h5 datasets.
+
+> ```bash
+> python train.py --track TRACK --config PATH_TO_CONFIG
+> ```
+
+- If you run into CUDA out-of-memory (OOM) issues, it may help to set: `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`
+
 
 ---
 
 ### 3. Evaluating the model on `test-public`
-> ```bash
-> python evaluate.py --track TRACK --config PATH_TO_CONFIG --model path/to/model.tar
-> ```
-
-To validate a trained model, provide the configuration that was used for training and the saved checkpoint.
-
-#### 3.1. (Optional) Faster evaluation
-Similarly to `train_fast.py`, there is also `evaluate_fast.py`, which enables evaluation for alternative training pipelines such as TRevSCI.
+Similarly to `train_fast.py`, there is also `evaluate_fast.py`, which enables evaluation for alternative training pipelines such as TRevSCI. To validate a trained model, provide the configuration that was used for training and the saved checkpoint.
 
 > ```bash
 > python evaluate_fast.py --track TRACK --config PATH_TO_CONFIG --model path/to/model.tar
@@ -239,25 +231,31 @@ Models trained with `train_fast.py` also save their configuration together with 
 > python evaluate_fast.py --track TRACK --model runs/track1/blahblah/
 > ```
 
+#### 3.1. Legacy evaluation
+`evaluate.py` may lack some features of `evaluate_fast.py`, but will automatically make use of the dataset in form .h5.
+> ```bash
+> python evaluate.py --track TRACK --config PATH_TO_CONFIG --model path/to/model.tar
+> ```
+
 ---
 
 ### 4. Generating predictions for `test-private`
 > ```bash
-> python submission.py --track TRACK --config PATH_TO_CONFIG --model path/to/model.tar
+> python submission_fast.py --track TRACK --config PATH_TO_CONFIG --model path/to/model.tar
 > ```
 
 You can change the output directory for the submission files with the `-o OUT_DIR` flag. By default, outputs are written to the `submission_files` folder.
 
-**NOTE:** Models trained with the legacy/old scripts will not be compatible with the scripts above.
-If you want to run a model trained with the old script, you need to apply the following change in the submission script:
+**NOTE:** Models trained with certain legacy/old scripts may not be compatible with the scripts above.
+If you run into errors, you may need to apply the following change in the submission script:
 
 ```diff
 -  model.load_state_dict(checkpoint["model"])
 +  model.load_state_dict(checkpoint)
 ```
 
-#### 4.1. (Optional) Faster prediction
-To use models with the TRevSCI->MST++ pipeline, you must use the `submission_fast.py` script. The logic is the same as in `evaluate_fast.py`.
+#### 4.1. Legacy prediction
+`submission.py` is available though may not work with models trained with recent files. To use models with the TRevSCI->MST++ pipeline, you must use the `submission_fast.py` script. The logic is the same as in `evaluate_fast.py`.
 
 ---
 
