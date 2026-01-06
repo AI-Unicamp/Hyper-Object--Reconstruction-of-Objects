@@ -186,7 +186,7 @@ If no configuration is provided, the script will use the default baseline. For e
 
 - If you run into CUDA out-of-memory (OOM) issues, it may help to set: `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`
 
-#### (Optional) 2.1. Faster training
+#### 2.1. (Optional) Faster training
 The `train_fast.py` enables faster training by loading inputs (light) and outputs (heavy) separately, and it also supports additional training schemes (for example, TRevSCI training requires this script).
 
 Run:
@@ -212,7 +212,7 @@ For example, to train MST++ using `rgb_full` as input and predict `hsi_61`:
 
 You can also use `-s SEED` to make training runs reproducible (i.e., deterministic shuffles and transforms).
 
-#### (Optional) 2.2. Alternative indexing for test data
+#### 2.2. (Optional) Alternative indexing for test data
 With `train_fast.py`, you can specify an index file using `--index` listing the sample IDs to be used as the test dataset.
 For example, `--index config/indexing/alt.txt` points to an index of 12 images (4 from each category).
 
@@ -252,7 +252,7 @@ If you want to run a model trained with the old script, you need to apply the fo
 +  model.load_state_dict(checkpoint)
 ```
 
-#### (Optional) 4.1. Faster prediction
+#### 4.1. (Optional) Faster prediction
 To use models with the TRevSCI->MST++ pipeline, you must use the `submission_fast.py` script. The logic is the same as in `evaluate_fast.py`.
 
 ### 5. Adding a model
