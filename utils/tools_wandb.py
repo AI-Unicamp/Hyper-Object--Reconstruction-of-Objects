@@ -1,4 +1,5 @@
 import wandb
+import os
 
 class ToolsWandb:
 
@@ -14,12 +15,14 @@ class ToolsWandb:
     @staticmethod
     def init_wandb_run(f_configurations,
                        run_name,
-                       name_project="hyper-object",
+                       name_project="your-project-name",
                        reinit=True,
                        notes="Testing wandb implementation",
-                       entity="UniChampions2026"):
+                       entity="YourEntityName"):
+        project = name_project or os.getenv("WANDB_PROJECT")
+        entity = entity or os.getenv("WANDB_ENTITY")
 
-        return wandb.init(project=name_project,
+        return wandb.init(project=project,
                           name=run_name,
                           reinit=reinit,
                           config=f_configurations,
