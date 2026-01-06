@@ -378,7 +378,7 @@ generate_next_synthetic_from_plan(
 
 > Example output when generating one synthetic pair (two originals on the left, synthetic on the right):
 
-![SMOTE-like example output](assets/smote_example.png)
+![SMOTE-like example output](assets/smote-example.png)
 
 
 #### 6.6. Reproducibility note (what stays fixed vs what changes)
