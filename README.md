@@ -376,6 +376,11 @@ generate_next_synthetic_from_plan(
 )
 ```
 
+> Example output when generating one synthetic pair (two originals on the left, synthetic on the right):
+
+![SMOTE-like example output](assets/smote_example.png)
+
+
 #### 6.6. Reproducibility note (what stays fixed vs what changes)
 - Fixed (reproducible): which pairs are used `id1`, `id2`), because `smote_plan.csv` is built with `random_state=42`.
 - Not fixed by default:  the interpolation factor $\lambda$ is sampled at generation time. So if you rerun generation without saving $\lambda$, the same `(id1, id2)` can produce slightly different synthetic samples. If you need strict determinism for the synthetic pixels, extend the plan to also store a `lambda` column and reuse it during generation.
