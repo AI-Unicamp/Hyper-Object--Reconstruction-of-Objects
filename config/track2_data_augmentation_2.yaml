@@ -1,0 +1,49 @@
+train:
+  batch_size_train: 4
+  num_workers_train: 4
+  batch_size_test: 4
+  num_workers_test: 4
+
+  fast:
+    num_workers_train_in: 4
+    num_workers_train_out: 4
+    num_workers_test_in: 4
+    num_workers_test_out: 4
+
+  epochs: 1000
+  amp: True
+
+  optim: "adamw"
+  lr: 0.0003
+  weight_decay: 0.0001
+
+  scheduler: "cosine"
+  eta_min: 0.000001
+
+  lambda_sam: 0.1
+
+  metrics_report_interval: 5
+
+  balance_cats: True
+
+model:
+  model_name: "mst_plus_plus_up"
+  in_channels: 3
+  out_channels: 61
+  n_feat: 61
+  stage: 3
+  upscale_factor: 2
+
+transforms:
+  random_crop: False
+  crop_size: 512
+  random_flip: True
+
+  # new
+  random_rot90: true
+
+  rgb_gaussian_noise: false
+  rgb_noise_sigma: 0.01
+
+  spectral_jitter: false
+  spectral_jitter_sigma: 0.02

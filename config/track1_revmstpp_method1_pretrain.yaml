@@ -1,0 +1,52 @@
+train:
+  batch_size_train: 1
+  batch_size_test: 1  
+
+  num_workers_train: 0
+  num_workers_test: 0 
+  fast:
+     num_workers_train_in: 2
+     num_workers_train_out: 2
+     
+     num_workers_test_in: 2
+     num_workers_test_out: 2
+
+  epochs: 500 
+  amp: True
+
+  optim: "adamw"
+  lr: 0.0002
+  weight_decay: 0.0001
+
+  scheduler: "cosine"
+  eta_min: 0.000001
+
+  lambda_sam: 0.1
+
+  metrics_report_interval: 5
+
+  # "reverse" training mode - for revsci only. slower but uses less memory
+  rev_mode: False # IGNORED when amp = True
+
+  balance_cats: False
+
+model:
+  model_name: "revsci_rgb"
+
+  # revsci params
+  n_blocks: 12
+  n_split: 2
+  old_mode: True # some pre-trained models will require this to be True
+  
+transforms:
+  random_crop: true
+  crop_size: 512
+
+  random_flip: False
+  random_rot90: False
+
+  rgb_gaussian_noise: False
+  rgb_noise_sigma: 0.01
+
+  spectral_jitter: False
+  spectral_jiter_sigma: 0.02

@@ -79,6 +79,25 @@ def setup_model(config: Dict[str, Any]) -> torch.nn.Module:
 
             return model
 
+        case "revsci_mstpp_no_pretrain":
+            revsci = Rev3DCNN(n_blocks=config.get("n_blocks", 12),
+                             n_split=config.get("n_split", 2),
+                             old_mode=config.get("old_mode", False))
+
+            mstpp = MST_Plus_Plus_LateUpsample(in_channels=config.get("in_channels", 3),
+                                               out_channels=config.get("out_channels", 61),
+                                               n_feat=config.get("n_feat", 61),
+                                               stage=config.get("stage", 3),
+                                               upscale_factor=config.get("upscale_factor", 1))
+            mstpp.return_hr = False
+            mstpp.force_direct_lr = config.get("force_direct_lr", True)
+
+            model = torch.nn.Sequential(
+                    revsci, mstpp
+                    )
+
+            return model
+
         case "revsci_mstpp_up":
             # pre-trained TRevSCI (frozen) with MST++, adapted to track 2
             to_mosaic = MosaicUp(old_mode=config.get("old_mode", False))
