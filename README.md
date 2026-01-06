@@ -237,6 +237,8 @@ Models trained with `train_fast.py` also save their configuration together with 
 > python evaluate_fast.py --track TRACK --model runs/track1/blahblah/
 > ```
 
+---
+
 ### 4. Generating predictions for `test-private`
 > ```bash
 > python submission.py --track TRACK --config PATH_TO_CONFIG --model path/to/model.tar
@@ -255,13 +257,135 @@ If you want to run a model trained with the old script, you need to apply the fo
 #### 4.1. (Optional) Faster prediction
 To use models with the TRevSCI->MST++ pipeline, you must use the `submission_fast.py` script. The logic is the same as in `evaluate_fast.py`.
 
+---
+
 ### 5. Adding a model
 To add a new model:
 1. Implement the model inside `models/`, following `example.py`.
 2. Add a configuration for the model in `configs/`, starting from `CONFIG_TEMPLATE.yaml`.
 3. In `models/__init__.py`, update the `setup_model` function to include the model setup, following the example in the file.
 
-### 6. Weights & Biases
+---
+
+### 6. Generating synthetic data via SMOTE
+This repo includes a **SMOTE-like** generator for Track 2 that creates **new (RGB, HSI)** pairs by **linear interpolation** between two real samples **from the same class**:
+
+\[
+x_{\text{syn}} = x_1 + \lambda (x_2 - x_1), \quad \lambda \sim U(0,1)
+\]
+
+It works on **both modalities** (HSI cube + RGB image) and saves the synthetic pair to disk.
+
+
+#### 6.1. Create an environment for SMOTE
+
+You can reuse your main environment, but for reproducibility and fewer dependency headaches we recommend a separate one:
+
+> ```bash
+> conda create -n smote-env python=3.11 -y
+> conda activate smote-env
+> pip install -r requirements.txt
+> ```
+
+Install the extra packages used by the SMOTE notebook:
+> ```bash
+> pip install h5py pandas matplotlib opencv-python
+> ```
+
+If you want GPU interpolation, install PyTorch with CUDA support (follow the [official PyTorch selector for your CUDA version](https://pytorch.org/get-started/locally/)). If you don’t, the notebook will still run on CPU.
+
+#### 6.2. Open the SMOTE notebook
+The SMOTE workflow is implemented in `smote.ipynb`. Run it with:
+> ```bash
+> pip install jupyter
+> jupyter lab smote.ipynb
+> ```
+
+> Note: You can run it in JupyterLab, but you can also open the notebook in an IDE (e.g., VS Code / PyCharm) and execute it cell-by-cell there.
+
+#### 6.3. Configure paths + output folder
+Inside `smote.ipynb`, set the dataset paths:
+
+> ```python
+> BASE_TRAIN_DIR = r"/path/to/track2/train"
+> BASE_TEST_DIR  = r"/path/to/track2/test-public"
+> OUT_ROOT_DA    = r"./DataAugmentation"
+> ```
+
+The notebook writes outputs to:
+```
+DataAugmentation/
+  labels_train.csv
+  labels_test-public.csv
+  smote_plan.csv
+  train/
+    hsi_61/
+    rgb_2/
+  test-public/
+    hsi_61/
+    rgb_2/
+```
+
+#### 6.4. How the SMOTE plan works (reproducible pairing)
+The notebook first scans:
+- `hsi_61/*.h5`
+- `rgb_2/*` (must share the same basename as the `.h5`)
+
+It generates metadata files:
+- `labels_train.csv`
+- `labels_test-public.csv`
+
+Then it creates a pairing plan (`smote_plan.csv`) to balance classes within each split (train and test-public separately). For each class, it plans enough synthetic samples to match the largest class count in that split.
+
+> Important: the pair selection is deterministic because the plan builder uses `random_state = 42` in `build_smote_plan_for_split()` function. So: the two source inputs (`id1`, `id2`) for each synthetic sample are fixed as long as you keep the same data and keep `random_state = 42`.
+
+
+#### 6.5. Generating synthetic samples (one at a time)
+Synthetic samples are large (HSI is resized to 1024×1024×61), so the notebook intentionally generates one synthetic pair per call to avoid GPU/CPU memory spikes.
+
+Each generation step:
+- loads the two originals (`id1`, `id2`)
+- normalizes each HSI cube to [0, 1]
+- resizes (HSI -> 1024×1024, RGB -> 512×512)
+- interpolates (optionally on GPU)
+- saves outputs
+- runs cleanup (`del ...` and `gc.collect()`)
+
+It also prints what it just generated (including the two source IDs) and can plot:
+- original RGB for id1
+- original RGB for id2
+- synthetic RGB
+
+**Naming schene**: each synthetic sample uses: `synthetic_id = f"{id_1}_{id2}"`
+  and is saved as:
+  - `DataAugmentation/<split>/hsi_61/<synthetic_id>.h5`
+  - `DataAugmentation/<split>/rgb_2/<synthetic_id>.png`
+
+To generate samples, run the final cell repeatedly:
+```
+generate_next_synthetic_from_plan(
+    plan_path=SMOTE_PLAN_CSV,
+    labels_train_path=LABELS_TRAIN_CSV,
+    labels_test_path=LABELS_TEST_CSV,
+    base_train_dir=BASE_TRAIN_DIR,
+    base_test_dir=BASE_TEST_DIR,
+    out_root_da=OUT_ROOT_DA,
+    split_filter=None,     # or "train" / "test-public"
+    show_plot=True,
+    use_gpu_interp=True
+)
+```
+
+#### 6.6. Reproducibility note (what stays fixed vs what changes)
+- Fixed (reproducible): which pairs are used `id1`, `id2`), because `smote_plan.csv` is built with `random_state=42`.
+- Not fixed by default:  the interpolation factor $\lambda$ is sampled at generation time. So if you rerun generation without saving $\lambda$, the same `(id1, id2)` can produce slightly different synthetic samples. If you need strict determinism for the synthetic pixels, extend the plan to also store a `lambda` column and reuse it during generation.
+
+#### 6.7. Required index file for SMOTE experiments
+To reproduce the exact SMOTE experiments in this repo, you must use the SMOTE-specific index file: `/config/indexing/alt_smote.txt`. This index is aligned with the default seed (`random_state=42`) used when building the SMOTE plan. If you change the seed (or rebuild the plan with a different dataset ordering), you must regenerate/update the index accordingly.
+
+---
+
+### 7. Weights & Biases
 To log training runs to Weights & Biases (wandb), first log in with:
 > ```bash
 > wandb login
