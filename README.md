@@ -314,16 +314,16 @@ Inside `smote.ipynb`, set the dataset paths:
 
 The notebook writes outputs to:
 ```
-DataAugmentation/
-  labels_train.csv
-  labels_test-public.csv
-  smote_plan.csv
-  train/
-    hsi_61/
-    rgb_2/
-  test-public/
-    hsi_61/
-    rgb_2/
+|-- DataAugmentation/
+    |-- labels_train.csv
+    |-- labels_test-public.csv
+    |-- smote_plan.csv
+    |-- train/
+        |-- hsi_61/
+        |-- rgb_2/
+    |-- test-public/
+        |-- hsi_61/
+        |-- rgb_2/
 ```
 
 #### 6.4. How the SMOTE plan works (reproducible pairing)
