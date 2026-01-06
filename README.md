@@ -87,7 +87,7 @@ If you installed conda but you get "command not found", you may need to initiali
 ### 1.2. Upload the data
 - Upload the dataset into the `data/` folder.
 - Put the Track 1/2 data inside subfolders named `track1` and `track2`.
-- Rename the Track 2 public test folder from `public-test` to `test-public`.
+- Rename the Track 2 public test folder from `public-test` to `test-public` (only if your dataset uses that folder name).
 
 Therefore, the directory structure will be (only the folders above are shown):
 
