@@ -73,7 +73,7 @@ If you installed conda but you get "command not found", you may need to initiali
 > source ~/miniconda3/bin/activate
 > ```
 
-### 1.1.3. (Optional) Quick checks
+#### 1.1.3. (Optional) Quick checks
 > ```bash
 > # Show which Python you're using
 > which python
@@ -158,8 +158,7 @@ Then, the structure for each track will be:
 ```
 
 ### 1.3. Install repo requirements (after activating the environment)
-#### Instalando requirements
-Entre na pasta onde está o arquivo requirements.txt e execute:
+Go to the folder where the `requirements.txt` file is located and run:
 > ```bash
 > pip install -r requirements.txt
 > ```
