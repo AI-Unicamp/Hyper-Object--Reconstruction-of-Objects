@@ -8,12 +8,6 @@ We present a reproducible experimental framework for the ICASSP 2026 Hyperobject
 
 > Hyperobject Challenge official repository: https://github.com/hyper-object/2026-ICASSP-SPGC
 
-This repository contains:
-- Complete reproducible tutorial (README)
-- Config .yaml files
-- CLI flags implemented
-- (conferir) Conversion script .h5 -> .zarr
-- (conferir) Code for SMOTE generation
 
 ## The Challenge - Track 2 summary (from the official challenge README)
 
