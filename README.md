@@ -169,8 +169,40 @@ Go to the folder where the `requirements.txt` file is located and run:
 
 ---
 
+### 2. Selecting a training configuration (`.yaml`)
 
-### 2. Training the models
+All experiments in this repo are driven by a configuration file (`.yaml`), which defines the model/training setup (including options such as data loading, augmentation/transforms, and other experiment switches).
+
+You pass a config with `--config` (or omit it to run the default baseline):
+
+- Default baseline (no config):  
+  ```bash
+  python train.py --track 2
+  ```
+- With a config:
+  ```bash
+  python train.py --track 2 --config path/to/config.yaml
+  ```
+
+#### 2.1. Recommended Track 2 configs
+
+All files below live under the config/ folder in this repository.
+
+- track2_best.yaml: Best Track 2 submission (0.57146/SSC on test-private).
+  Use this to reproduce the organizers' official baseline (the unmodified reference implementation). 
+
+- track2_data_augmentation.yaml: Recommended for robustness.
+  Use this when you prefer stronger regularization: it enables the full set of augmentations we used (e.g., flip/rot90, RGB noise, spectral jitter). (This typically trades a bit of peak leaderboard score for better robustness.)
+
+- track2_data_augmentation_2.yaml: Paper “SMOTE + transforms” setting (0.53216/SSC).
+  Use this when you want to reproduce the “SMOTE + transforms” experiment discussed in the paper (even though it is not our best absolute score).
+
+- Config template (for your own configs): If you want to create a new config from scratch, start from `CONFIG_TEMPLATE.yaml`.
+
+---
+
+
+### 3. Training the models
 The `train_fast.py` script enables faster training by loading inputs (light) and outputs (heavy) separately, and it also supports additional training schemes (for example, TRevSCI training requires this script).
 
 Run:
@@ -203,11 +235,11 @@ If no configuration is provided, the script will use the default baseline. For e
 
 You can also use `-s SEED` to make training runs reproducible (i.e., deterministic shuffles and transforms).
 
-#### 2.1. (Optional) Alternative indexing for test data
+#### 3.1. (Optional) Alternative indexing for test data
 With `train_fast.py`, you can specify an index file using `--index` listing the sample IDs to be used as the test dataset.
 For example, `--index config/indexing/alt.txt` points to an index of 12 images (4 from each category).
 
-#### 2.2. Legacy training
+#### 3.2. Legacy training
 `train.py` lacks a lot of features available to `train_fast.py`, but is still usable, and will automatically point to .h5 datasets.
 
 > ```bash
@@ -219,7 +251,7 @@ For example, `--index config/indexing/alt.txt` points to an index of 12 images (
 
 ---
 
-### 3. Evaluating the model on `test-public`
+### 4. Evaluating the model on `test-public`
 Similarly to `train_fast.py`, there is also `evaluate_fast.py`, which enables evaluation for alternative training pipelines such as TRevSCI. To validate a trained model, provide the configuration that was used for training and the saved checkpoint.
 
 > ```bash
@@ -231,7 +263,7 @@ Models trained with `train_fast.py` also save their configuration together with 
 > python evaluate_fast.py --track TRACK --model runs/track2/MODEL_DIR/model_best.tar
 > ```
 
-#### 3.1. Legacy evaluation
+#### 4.1. Legacy evaluation
 `evaluate.py` may lack some features of `evaluate_fast.py`, but will automatically make use of the dataset in form .h5.
 > ```bash
 > python evaluate.py --track TRACK --config PATH_TO_CONFIG --model path/to/model.tar
@@ -239,7 +271,7 @@ Models trained with `train_fast.py` also save their configuration together with 
 
 ---
 
-### 4. Generating predictions for `test-private`
+### 5. Generating predictions for `test-private`
 > ```bash
 > python submission_fast.py --track TRACK --config PATH_TO_CONFIG --model path/to/model.tar
 > ```
@@ -254,12 +286,12 @@ If you run into errors, you may need to apply the following change in the submis
 +  model.load_state_dict(checkpoint)
 ```
 
-#### 4.1. Legacy prediction
+#### 5.1. Legacy prediction
 `submission.py` is available though may not work with models trained with recent files. To use models with the TRevSCI->MST++ pipeline, you must use the `submission_fast.py` script. The logic is the same as in `evaluate_fast.py`.
 
 ---
 
-### 5. Adding a model
+### 6. Adding a model
 To add a new model:
 1. Implement the model inside `models/`, following `example.py`.
 2. Add a configuration for the model in `configs/`, starting from `CONFIG_TEMPLATE.yaml`.
@@ -267,7 +299,7 @@ To add a new model:
 
 ---
 
-### 6. Generating synthetic data via SMOTE
+### 7. Generating synthetic data via SMOTE
 This repo includes a **SMOTE-like** generator for Track 2 that creates **new (RGB, HSI)** pairs by **linear interpolation** between two real samples **from the same class**:
 
 $$
@@ -277,7 +309,7 @@ $$
 It works on **both modalities** (HSI cube + RGB image) and saves the synthetic pair to disk.
 
 
-#### 6.1. Create an environment for SMOTE
+#### 7.1. Create an environment for SMOTE
 
 You can reuse your main environment, but for reproducibility and fewer dependency headaches we recommend a separate one:
 
@@ -294,7 +326,7 @@ Install the extra packages used by the SMOTE notebook:
 
 If you want GPU interpolation, install PyTorch with CUDA support (follow the [official PyTorch selector for your CUDA version](https://pytorch.org/get-started/locally/)). If you don’t, the notebook will still run on CPU.
 
-#### 6.2. Open the SMOTE notebook
+#### 7.2. Open the SMOTE notebook
 The SMOTE workflow is implemented in `smote.ipynb`. Run it with:
 > ```bash
 > pip install jupyter
@@ -303,7 +335,7 @@ The SMOTE workflow is implemented in `smote.ipynb`. Run it with:
 
 > Note: You can run it in JupyterLab, but you can also open the notebook in an IDE (e.g., VS Code / PyCharm) and execute it cell-by-cell there.
 
-#### 6.3. Configure paths + output folder
+#### 7.3. Configure paths + output folder
 Inside `smote.ipynb`, set the dataset paths:
 
 > ```python
@@ -326,7 +358,7 @@ The notebook writes outputs to:
         |-- rgb_2/
 ```
 
-#### 6.4. How the SMOTE plan works (reproducible pairing)
+#### 7.4. How the SMOTE plan works (reproducible pairing)
 The notebook first scans:
 - `hsi_61/*.h5`
 - `rgb_2/*` (must share the same basename as the `.h5`)
@@ -340,7 +372,7 @@ Then it creates a pairing plan (`smote_plan.csv`) to balance classes within each
 > Important: the pair selection is deterministic because the plan builder uses `random_state = 42` in `build_smote_plan_for_split()` function. So: the two source inputs (`id1`, `id2`) for each synthetic sample are fixed as long as you keep the same data and keep `random_state = 42`.
 
 
-#### 6.5. Generating synthetic samples (one at a time)
+#### 7.5. Generating synthetic samples (one at a time)
 Synthetic samples are large (HSI is resized to 1024×1024×61), so the notebook intentionally generates one synthetic pair per call to avoid GPU/CPU memory spikes.
 
 Each generation step:
@@ -381,12 +413,12 @@ generate_next_synthetic_from_plan(
 ![SMOTE-like example output](assets/smote-example.png)
 
 
-#### 6.6. Reproducibility note (what stays fixed vs what changes)
+#### 7.6. Reproducibility note (what stays fixed vs what changes)
 - Fixed (reproducible): which pairs are used `id1`, `id2`), because `smote_plan.csv` is built with `random_state=42`.
 - Not fixed by default:  the interpolation factor $\lambda$ is sampled at generation time. So if you rerun generation without saving $\lambda$, the same `(id1, id2)` can produce slightly different synthetic samples. If you need strict determinism for the synthetic pixels, extend the plan to also store a `lambda` column and reuse it during generation.
 
 
-#### 6.7. Required index file for SMOTE experiments
+#### 7.7. Required index file for SMOTE experiments
 
 **How `--index` works (and why it prevents leakage):**  
 When training a model, we usually split the data into two roles:
@@ -411,7 +443,7 @@ To reproduce the SMOTE experiments in this repo without leakage, use the SMOTE-s
 This file was prepared to match the default SMOTE plan seed (`random_state=42`). If you change the seed (or regenerate the SMOTE plan / dataset), you should regenerate/update the index file as well.
 
 
-#### 6.8. Training with the SMOTE-augmented dataset
+#### 7.8. Training with the SMOTE-augmented dataset
 
 ##### Step 1 — Create a “full” augmented dataset folder (original + synthetic)
 
@@ -454,7 +486,7 @@ This will train using the augmented dataset under ```path/to/data_da```, and use
 
 ---
 
-### 7. Weights & Biases (W&B) — experiment logging (optional)
+### 8. Weights & Biases (W&B) — experiment logging (optional)
 
 This repo supports optional logging to Weights & Biases (wandb) to make runs easier to track, compare, and reproduce.
 
@@ -472,14 +504,14 @@ https://github.com/AI-Unicamp/Hyper-Object--Reconstruction-of-Objects/blob/main/
 3. Get your API key (needed to log runs): https://wandb.ai/authorize  
    More info: W&B Quickstart https://docs.wandb.ai/models/quickstart
 
-#### 7.1 Install wandb
+#### 8.1 Install wandb
 If you installed this repo with `requirements.txt`, you may already have it. If not:
 
 > ```bash
 > pip install wandb
 > ```
 
-#### 7.2. Login (one-time)
+#### 8.2. Login (one-time)
 Run:
 
 > ```bash
@@ -490,7 +522,7 @@ Paste your API key when prompted. (CLI details: https://docs.wandb.ai/models/ref
 )
 
 
-#### 7.3 Choose where runs will be stored (project + entity)
+#### 8.3 Choose where runs will be stored (project + entity)
 
 W&B organizes runs under **entity / project**:
 - **Entity**: your W&B username or a team (workspace).
@@ -519,7 +551,7 @@ setx WANDB_PROJECT "your_project_name"
 
 If you don’t set these, W&B will still log runs, but they may end up under default locations/names depending on your account settings and local directory.
 
-#### 7.4. Run training with W&B enabled
+#### 8.4. Run training with W&B enabled
 - Step 1: Make sure you are logged in (```wandb login```) and (recommended) set WANDB_ENTITY / WANDB_PROJECT.
 
 - Step 2: Add --use_wandb when training:
@@ -528,7 +560,7 @@ If you don’t set these, W&B will still log runs, but they may end up under def
 python train.py --track TRACK --config PATH_TO_CONFIG --use_wandb
 ```
 
-#### 7.5. Disable W&B or run offline
+#### 8.5. Disable W&B or run offline
 - Disable logging completely: simply omit the flag:
 ```bash
 python train.py --track TRACK --config PATH_TO_CONFIG
