@@ -582,11 +582,11 @@ export WANDB_MODE="offline"
 - Run:
   - `import torch`
 - Then check GPU availability with one of the commands below:
-  - `torch.cuda.is_available()` — returns `True` if a CUDA-capable GPU is available and PyTorch can use it; otherwise `False`.
-  - `torch.cuda.device_count()` — returns the number of available GPUs.
-  - `torch.cuda.current_device()` — returns the index of the currently selected GPU.
-  - `torch.cuda.get_device_name(device_id)` — returns the name of the GPU specified by `device_id`.
-  - `torch.cuda.get_device_properties(device_id)` — returns properties of the specified GPU (e.g., memory, compute capability).
+  - `torch.cuda.is_available()`: returns `True` if a CUDA-capable GPU is available and PyTorch can use it; otherwise `False`.
+  - `torch.cuda.device_count()`: returns the number of available GPUs.
+  - `torch.cuda.current_device()`: returns the index of the currently selected GPU.
+  - `torch.cuda.get_device_name(device_id)`: returns the name of the GPU specified by `device_id`.
+  - `torch.cuda.get_device_properties(device_id)`: returns properties of the specified GPU (e.g., memory, compute capability).
 - Type `exit()` to return to the shell.
 
 #### B. Keep `requirements.txt` up to date
