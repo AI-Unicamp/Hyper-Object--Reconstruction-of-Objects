@@ -2,6 +2,9 @@
 
 We present a reproducible experimental framework for the ICASSP 2026 Hyperobject Challenge (Track~2), focusing on baseline engineering rather than architectural changes. Using the official provided baseline as a fixed reference, we provide a tutorial-driven, end-to-end workflow that lowers the entry barrier for the broader MSI/HSI community and standardizes data handling, augmentation, training/evaluation, and configuration for reliable comparison and rapid ablation. Our framework includes reproducible workflows, category-aware sampling, and practical I/O optimizations. Without modifying the baseline architecture, we achieve competitive performance (0.57146/SSC on the test-private split).
 
+> **Reader note:** This README is intentionally detailed and assumes **basic (or no) prior experience** with repos and command-line workflows. If you already know your way around ML repos and the command line, feel free to skim, skip sections, and jump straight to the commands.
+
+
 > Leaderboard snapshot (team: RainbowAI, test-private SSC = 0.57146):
 
 ![Leaderboard snapshot](assets/leaderboard.png)
@@ -82,8 +85,8 @@ If you installed conda but you get "command not found", you may need to initiali
 > conda info --envs
 > ```
 
-### 1.2. Upload the data
-- Upload the dataset into the `data/` folder.
+### 1.2. Organize the data
+- Place the dataset into the `data/` folder.
 - Put the Track 1/2 data inside subfolders named `track1` and `track2`.
 - Rename the Track 2 public test folder from `public-test` to `test-public` (only if your dataset uses that folder name).
 
