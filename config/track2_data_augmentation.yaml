@@ -42,8 +42,8 @@ transforms:
   # new
   random_rot90: true
 
-  rgb_gaussian_noise: false
+  rgb_gaussian_noise: true
   rgb_noise_sigma: 0.01
 
-  spectral_jitter: false
+  spectral_jitter: true
   spectral_jitter_sigma: 0.02
