@@ -123,9 +123,9 @@ Some additional “sub-datasets” were generated and may be required:
 - `hsi_61_zarr`: Hyperspectral images compressed in a format that speeds up reading on HDDs.
 The `train` split is available [here](https://drive.google.com/file/d/1VUhh06-X8rkoGVT9kgp1SkCEzK5VDNue/view?usp=sharing), and the `test-public` split is available [here](https://drive.google.com/file/d/1mYDPvYhqCs1fbDjPfItGDOuyOWf1_nvF/view?usp=sharing).
 Alternatively, it is possible to generate the compressed files locally with the `zarr_convert.py` script found in `util-scripts`, as such:
-```bash
-python util-scripts/zarr_convert.py HSI_61_DIR -o OUT_DIR
-```
+> ```bash
+> python util-scripts/zarr_convert.py HSI_61_DIR -o OUT_DIR
+> ```
 - `rgb_full`: RGB renderings generated from the 61-band images. These are used for TRevSCI pre-training. The `train` split is available [here](https://drive.google.com/file/d/15G-PIgDrjGClxsio5a-r68x0KlFBDsoL/view?usp=sharing) and the `test-public` split is available [here](https://drive.google.com/file/d/1A2xJ9eBADNx5hFru3gjNkqdws34Cp-Bp/view?usp=sharing).
 
 The “sub-datasets” are the same for both tracks. If you are using Linux/Mac, you don’t need to download them twice—just create symlinks.
@@ -262,6 +262,8 @@ Models trained with `train_fast.py` also save their configuration together with 
 > ```bash
 > python evaluate_fast.py --track TRACK --model runs/track2/MODEL_DIR/model_best.tar
 > ```
+
+Much like `train_fast.py`, the flags `-i` and `-o` can be used to determine which subsets of the data will be used.
 
 #### 4.1. Legacy evaluation
 `evaluate.py` may lack some features of `evaluate_fast.py`, but will automatically make use of the dataset in form .h5.
@@ -557,13 +559,13 @@ If you don’t set these, W&B will still log runs, but they may end up under def
 - Step 2: Add --use_wandb when training:
   
 ```bash
-python train.py --track TRACK --config PATH_TO_CONFIG --use_wandb
+python train_fast.py --track TRACK --config PATH_TO_CONFIG --use_wandb
 ```
 
 #### 8.5. Disable W&B or run offline
 - Disable logging completely: simply omit the flag:
 ```bash
-python train.py --track TRACK --config PATH_TO_CONFIG
+python train_fast.py --track TRACK --config PATH_TO_CONFIG
 ```
 - Disable W&B even if the flag is accidentally enabled: set:
 ```bash
